@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import PasswordInput from "@/components/password-input";
+
 export default function LoginPage() {
   const router = useRouter();
   const [phone, setPhone] = useState("");
@@ -54,13 +56,12 @@ export default function LoginPage() {
           onChange={(e) => setPhone(e.target.value)}
           required
         />
-        <input
-          className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
-          type="password"
-          placeholder="Mật khẩu"
+        <PasswordInput
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={setPassword}
+          autoComplete="current-password"
           required
+          disabled={loading}
         />
 
         {error ? <p className="text-sm text-rose-600">{error}</p> : null}

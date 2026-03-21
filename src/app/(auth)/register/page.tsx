@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import PasswordInput from "@/components/password-input";
+
 export default function RegisterPage() {
   const router = useRouter();
   const [form, setForm] = useState({
@@ -63,13 +65,12 @@ export default function RegisterPage() {
           onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
           required
         />
-        <input
-          className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
-          type="password"
-          placeholder="Mật khẩu"
+        <PasswordInput
           value={form.password}
-          onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
+          onChange={(password) => setForm((p) => ({ ...p, password }))}
+          autoComplete="new-password"
           required
+          disabled={loading}
         />
         {error ? <p className="text-sm text-rose-600">{error}</p> : null}
         {message ? <p className="text-sm text-emerald-600">{message}</p> : null}

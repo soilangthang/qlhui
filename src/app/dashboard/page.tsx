@@ -27,7 +27,8 @@ function lineStatusDisplay(line: { soChan: number; _count: { openings: number } 
 export default async function DashboardPage() {
   const userId = await assertChuHuiUserId();
 
-  const [huiMemberCount, choGiaoTien, lines, grossSum, paidOutSum, commissionRows] = await Promise.all([
+  const [huiMemberCount, choGiaoTien, lines, grossSum, paidOutSum, commissionRows, latestOpeningGlobal] =
+    await Promise.all([
     prisma.huiMember.count({ where: { userId } }),
     prisma.huiOpening.findMany({
       where: { status: "CHO_GIAO_TIEN", huiLine: { userId } },
@@ -67,6 +68,15 @@ export default async function DashboardPage() {
       where: { huiLine: { userId } },
       select: { grossPayout: true, finalPayout: true },
     }),
+    prisma.huiOpening.findFirst({
+      where: { huiLine: { userId } },
+      orderBy: [{ ngayKhui: "desc" }, { kyThu: "desc" }, { createdAt: "desc" }],
+      select: {
+        kyThu: true,
+        ngayKhui: true,
+        huiLine: { select: { name: true } },
+      },
+    }),
   ]);
 
   const totalGross = Number(grossSum._sum.grossPayout ?? 0);
@@ -78,24 +88,17 @@ export default async function DashboardPage() {
 
   const sapMo = lines.filter((l) => l.status === "SAP_MO");
   const dangChay = lines.filter((l) => l.status === "DANG_CHAY");
-  const nextFocus =
-    sapMo[0] ??
-    dangChay[0] ??
-    lines.find((l) => l.openings[0]) ??
-    lines[0] ??
-    null;
+  /** Dây ưu tiên hiển thị khi chưa có kỳ khui nào (không dùng làm “kỳ mới nhất”). */
+  const lineFallback = sapMo[0] ?? dangChay[0] ?? lines[0] ?? null;
 
   let nextKyLabel = "—";
   let nextKySub = "Chưa có dây hoặc chưa khui kỳ nào";
-  if (nextFocus) {
-    const latest = nextFocus.openings[0];
-    if (latest) {
-      nextKyLabel = formatDateVN(latest.ngayKhui);
-      nextKySub = `${nextFocus.name} • Kỳ ${latest.kyThu} (mới nhất)`;
-    } else {
-      nextKyLabel = formatDateVN(nextFocus.ngayMo);
-      nextKySub = `${nextFocus.name} • Ngày mở dây`;
-    }
+  if (latestOpeningGlobal) {
+    nextKyLabel = formatDateVN(latestOpeningGlobal.ngayKhui);
+    nextKySub = `${latestOpeningGlobal.huiLine.name} • Kỳ ${latestOpeningGlobal.kyThu} (mới nhất)`;
+  } else if (lineFallback) {
+    nextKyLabel = formatDateVN(lineFallback.ngayMo);
+    nextKySub = `${lineFallback.name} • Ngày mở dây`;
   }
 
   return (

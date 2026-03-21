@@ -12,6 +12,10 @@ export type QuanTriUser = {
   phone: string;
   rule: string;
   chuHuiAccessUnlocked: boolean;
+  /** Số dây hụi (chủ hụi). */
+  huiLineCount: number;
+  /** Tổng tiền cò (VNĐ) trên các dây của chủ hụi. */
+  tienCoTong: number;
   createdAt: string;
   updatedAt: string;
 };
@@ -34,6 +38,10 @@ function formatDate(iso: string) {
 
 function formatCount(n: number) {
   return n.toLocaleString("vi-VN");
+}
+
+function formatMoneyVn(value: number) {
+  return `${Math.round(value).toLocaleString("vi-VN")}đ`;
 }
 
 export default function QuanTriPanel({
@@ -62,12 +70,14 @@ export default function QuanTriPanel({
   const q = query.trim().toLowerCase();
   const filtered = useMemo(() => {
     if (!q) return users;
-    return users.filter(
-      (u) =>
-        u.name.toLowerCase().includes(q) ||
-        u.phone.replace(/\D/g, "").includes(q.replace(/\D/g, "")) ||
-        u.rule.toLowerCase().includes(q),
-    );
+    return users.filter((u) => {
+      if (u.name.toLowerCase().includes(q)) return true;
+      if (u.phone.replace(/\D/g, "").includes(q.replace(/\D/g, ""))) return true;
+      if (u.rule.toLowerCase().includes(q)) return true;
+      if (String(u.huiLineCount).includes(q)) return true;
+      if (formatMoneyVn(u.tienCoTong).toLowerCase().includes(q)) return true;
+      return false;
+    });
   }, [users, q]);
 
   function openEdit(u: QuanTriUser) {
@@ -152,6 +162,36 @@ export default function QuanTriPanel({
     }
   }
 
+  async function lockChuHui(u: QuanTriUser) {
+    if (u.rule !== "user" || !u.chuHuiAccessUnlocked) return;
+    if (
+      !window.confirm(
+        `Khóa tài khoản "${u.name}"? Họ sẽ phải trong diện dùng thử / hết hạn như quy định (có thể cần mở khóa lại sau).`,
+      )
+    ) {
+      return;
+    }
+    setBusyId(u.id);
+    setError("");
+    try {
+      const res = await fetch(`/api/admin/users/${u.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chuHuiAccessUnlocked: false }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.message ?? "Không khóa được");
+        return;
+      }
+      router.refresh();
+    } catch {
+      setError("Không kết nối được máy chủ");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function deleteUser(u: QuanTriUser) {
     if (u.id === currentAdminId) return;
     if (!window.confirm(`Xóa tài khoản "${u.name}" (${u.phone})? Không thể hoàn tác.`)) return;
@@ -223,7 +263,9 @@ export default function QuanTriPanel({
           khui của chính mình. <span className="font-semibold">Admin không truy cập</span> được ứng dụng hay dữ liệu
           chủ hụi — chỉ quản lý tài khoản tại đây.{" "}
           <span className="font-semibold">Dùng thử chủ hụi:</span> 10 ngày kể từ ngày tạo tài khoản; hết hạn cần bấm{" "}
-          <span className="font-semibold">Mở khóa</span> để họ dùng tiếp.
+          <span className="font-semibold">Mở khóa</span> để họ dùng tiếp. Cột <span className="font-semibold">Dây hụi</span>{" "}
+          và <span className="font-semibold">Tiền cò</span> là tổng theo dữ liệu của từng chủ hụi. Nút{" "}
+          <span className="font-semibold">Khóa</span> thu hồi quyền mở khóa (áp dụng lại dùng thử).
         </p>
 
         <section className="grid gap-4 sm:grid-cols-2">
@@ -238,7 +280,7 @@ export default function QuanTriPanel({
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Tìm tên, SĐT, vai trò…"
+              placeholder="Tìm tên, SĐT, vai trò, số dây…"
               className="w-full max-w-xs rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
               aria-label="Tìm tài khoản"
             />
@@ -255,6 +297,8 @@ export default function QuanTriPanel({
                   <th className="px-4 py-3 font-bold">Họ tên</th>
                   <th className="px-4 py-3 font-bold">SĐT</th>
                   <th className="px-4 py-3 font-bold">Vai trò</th>
+                  <th className="px-4 py-3 font-bold">Dây hụi</th>
+                  <th className="px-4 py-3 font-bold">Tiền cò</th>
                   <th className="px-4 py-3 font-bold">Dùng thử</th>
                   <th className="px-4 py-3 font-bold">Tạo lúc</th>
                   <th className="px-4 py-3 font-bold">Thao tác</th>
@@ -275,6 +319,12 @@ export default function QuanTriPanel({
                       >
                         {u.rule === "admin" ? "Admin" : "Chủ hụi"}
                       </span>
+                    </td>
+                    <td className="px-4 py-3 tabular-nums text-slate-700">
+                      {u.rule === "admin" ? "—" : formatCount(u.huiLineCount)}
+                    </td>
+                    <td className="px-4 py-3 tabular-nums text-slate-700">
+                      {u.rule === "admin" ? "—" : formatMoneyVn(u.tienCoTong)}
                     </td>
                     <td className="px-4 py-3">
                       {u.rule === "admin" ? (
@@ -312,6 +362,16 @@ export default function QuanTriPanel({
                             className="rounded-lg border border-emerald-400 bg-emerald-50 px-2.5 py-1.5 text-xs font-bold text-emerald-900 transition hover:bg-emerald-100 disabled:opacity-50"
                           >
                             Mở khóa
+                          </button>
+                        ) : null}
+                        {u.rule === "user" && u.chuHuiAccessUnlocked ? (
+                          <button
+                            type="button"
+                            onClick={() => void lockChuHui(u)}
+                            disabled={busyId !== null}
+                            className="rounded-lg border border-slate-400 bg-slate-100 px-2.5 py-1.5 text-xs font-bold text-slate-800 transition hover:bg-slate-200 disabled:opacity-50"
+                          >
+                            Khóa
                           </button>
                         ) : null}
                         <button

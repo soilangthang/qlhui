@@ -73,7 +73,8 @@ export default function ChiTietHuiVienPanel({
     let chan = 0;
     let chet = 0;
     let song = 0;
-    let realizedProfit = 0;
+    /** Cùng quy ước báo cáo: Dương = đóng − hốt; `realizedProfit` nội bộ = hốt − đóng. */
+    let amDuong = 0;
     for (const row of displayRows) {
       if (!selectedMember) continue;
       const { deadSlots, liveSlots, realizedProfit: rProfit } =
@@ -81,9 +82,9 @@ export default function ChiTietHuiVienPanel({
       chan += row.memberSlots;
       chet += deadSlots;
       song += liveSlots;
-      realizedProfit += rProfit;
+      amDuong -= rProfit;
     }
-    return { chan, chet, song, realizedProfit };
+    return { chan, chet, song, amDuong };
   }, [displayRows, selectedMember]);
 
   const printRootRef = useRef<HTMLDivElement>(null);
@@ -346,9 +347,10 @@ export default function ChiTietHuiVienPanel({
                   const {
                     deadSlots,
                     liveSlots,
-                    realizedProfit: pNow,
+                    realizedProfit: rProfit,
                     kyDaDong,
                   } = computeMemberRealizedProfit(row, m);
+                  const amDuong = -rProfit;
                   return (
                     <tr key={row.lineId}>
                       <td className="border-r border-slate-300 px-1 py-2">{idx + 1}</td>
@@ -382,10 +384,10 @@ export default function ChiTietHuiVienPanel({
                       </td>
                       <td
                         className={`border-r border-slate-300 px-1 py-2 text-sm font-semibold tabular-nums print:text-[8px] ${profitToneClass(
-                          pNow,
+                          amDuong,
                         )}`}
                       >
-                        {formatMoneyVN(pNow)}
+                        {formatMoneyVN(amDuong)}
                       </td>
                     </tr>
                   );
@@ -409,10 +411,10 @@ export default function ChiTietHuiVienPanel({
                   </td>
                   <td
                     className={`border-l border-slate-300 px-1 py-2 text-center text-sm tabular-nums print:py-1 print:text-[8px] ${profitToneClass(
-                      totals.realizedProfit,
+                      totals.amDuong,
                     )}`}
                   >
-                    {formatMoneyVN(totals.realizedProfit)}
+                    {formatMoneyVN(totals.amDuong)}
                   </td>
                 </tr>
               </tfoot>

@@ -9,7 +9,7 @@ export const metadata = {
 export default async function QuanTriPage() {
   const payload = await assertAdminOrRedirect();
 
-  const [usersRaw, chuHui, admin] = await Promise.all([
+  const [usersRaw, chuHui, admin, huiLineAgg] = await Promise.all([
     prisma.user.findMany({
       orderBy: { createdAt: "desc" },
       select: {
@@ -24,13 +24,33 @@ export default async function QuanTriPage() {
     }),
     prisma.user.count({ where: { rule: "user" } }),
     prisma.user.count({ where: { rule: "admin" } }),
+    prisma.huiLine.groupBy({
+      by: ["userId"],
+      _count: { id: true },
+      _sum: { tienCo: true },
+    }),
   ]);
 
-  const users: QuanTriUser[] = usersRaw.map((u) => ({
-    ...u,
-    createdAt: u.createdAt.toISOString(),
-    updatedAt: u.updatedAt.toISOString(),
-  }));
+  const huiStatsByUser = new Map(
+    huiLineAgg.map((row) => [
+      row.userId,
+      {
+        dayHui: row._count.id,
+        tienCoTong: Number(row._sum.tienCo ?? 0),
+      },
+    ]),
+  );
+
+  const users: QuanTriUser[] = usersRaw.map((u) => {
+    const s = u.rule === "user" ? huiStatsByUser.get(u.id) : undefined;
+    return {
+      ...u,
+      huiLineCount: s?.dayHui ?? 0,
+      tienCoTong: s?.tienCoTong ?? 0,
+      createdAt: u.createdAt.toISOString(),
+      updatedAt: u.updatedAt.toISOString(),
+    };
+  });
 
   const stats: QuanTriStats = {
     chuHui,
