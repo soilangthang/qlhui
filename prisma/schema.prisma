@@ -1,0 +1,163 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  phone        String   @unique
+  passwordHash String
+  rule         String   @default("user")
+  /** Chủ hụi: sau 10 ngày (createdAt) cần admin bật true mới dùng app tiếp. */
+  chuHuiAccessUnlocked Boolean @default(false)
+  date         DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  huiMembers          HuiMember[]
+  huiLines            HuiLine[]
+  ownerReceiptSetting OwnerReceiptSetting?
+}
+
+model HuiMember {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  phone     String
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, phone])
+  @@index([userId])
+}
+
+enum HuiLineStatus {
+  DANG_CHAY
+  SAP_MO
+  CHO_GOP
+}
+
+enum HuiCycle {
+  NGAY
+  THANG
+  NAM
+}
+
+enum HuiOpeningStatus {
+  CHO_GIAO_TIEN
+  DA_GIAO_TIEN
+}
+
+model HuiLine {
+  id           String        @id @default(cuid())
+  userId       String
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  soChan       Int
+  mucHuiThang  Decimal       @db.Decimal(14, 2)
+  tienCo       Decimal?      @db.Decimal(14, 2)
+  chuKy        HuiCycle      @default(THANG)
+  ngayMo       DateTime
+  status       HuiLineStatus @default(CHO_GOP)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  legs         HuiLeg[]
+  openings     HuiOpening[]
+
+  @@index([userId])
+}
+
+model HuiLeg {
+  id          String   @id @default(cuid())
+  huiLineId   String
+  stt         Int
+  memberName  String?
+  memberPhone String?
+  note        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  huiLine HuiLine @relation(fields: [huiLineId], references: [id], onDelete: Cascade)
+
+  @@unique([huiLineId, stt])
+}
+
+model HuiOpening {
+  id                  String           @id @default(cuid())
+  huiLineId           String
+  kyThu               Int
+  ngayKhui            DateTime
+  winnerLegStt        Int              @default(0)
+  winnerName          String           @default("")
+  winnerPhone         String?
+  winnerSlots         Int              @default(1)
+  bidAmount           Int              @default(0)
+  contributors        Int              @default(0)
+  contributionPerSlot Int              @default(0)
+  grossPayout         Int              @default(0)
+  finalPayout         Int              @default(0)
+  status              HuiOpeningStatus @default(CHO_GIAO_TIEN)
+  note                String?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  huiLine HuiLine @relation(fields: [huiLineId], references: [id], onDelete: Cascade)
+  memberPaidMarks HuiOpeningMemberPaidMark[]
+
+  @@unique([huiLineId, kyThu])
+}
+
+/** Đánh dấu hụi viên đã đóng đủ tiền kỳ (theo dõi thủ công). */
+model HuiOpeningMemberPaidMark {
+  id           String   @id @default(cuid())
+  huiOpeningId String
+  memberKey    String
+  paidFull     Boolean  @default(false)
+  updatedAt    DateTime @updatedAt
+
+  opening HuiOpening @relation(fields: [huiOpeningId], references: [id], onDelete: Cascade)
+
+  @@unique([huiOpeningId, memberKey])
+  @@index([huiOpeningId])
+}
+
+/** Cài đặt phiếu thu — mỗi chủ hụi (User) một bản ghi; khóa chính = userId. */
+model OwnerReceiptSetting {
+  userId       String   @id
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  huiName      String   @default("Hụi mini")
+  ownerName    String   @default("Chủ hụi")
+  address      String   @default("")
+  phone        String   @default("")
+  bankAccount  String   @default("")
+  bankName     String   @default("")
+  accountName  String   @default("")
+  qrImageUrl   String   @default("")
+  /** Nội dung khối GHI CHÚ trên phiếu tạm thu; mỗi dòng một ý (xuống dòng). */
+  phieuGhiChu  String   @default("") @db.Text
+  qrUpload     OwnerReceiptQrUpload?
+  updatedAt    DateTime @updatedAt
+}
+
+model OwnerReceiptQrUpload {
+  id        String              @id @default(cuid())
+  settingId String              @unique
+  imageData Bytes
+  mimeType  String
+  fileName  String?
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+
+  setting OwnerReceiptSetting @relation(fields: [settingId], references: [userId], onDelete: Cascade)
+}

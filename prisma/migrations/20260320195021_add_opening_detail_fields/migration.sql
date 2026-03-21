@@ -1,0 +1,14 @@
+-- CreateEnum
+CREATE TYPE "HuiOpeningStatus" AS ENUM ('CHO_GIAO_TIEN', 'DA_GIAO_TIEN');
+
+-- AlterTable
+ALTER TABLE "HuiOpening" ADD COLUMN     "bidAmount" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "contributionPerSlot" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "contributors" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "finalPayout" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "grossPayout" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "status" "HuiOpeningStatus" NOT NULL DEFAULT 'CHO_GIAO_TIEN',
+ADD COLUMN     "winnerLegStt" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "winnerName" TEXT NOT NULL DEFAULT '',
+ADD COLUMN     "winnerPhone" TEXT,
+ADD COLUMN     "winnerSlots" INTEGER NOT NULL DEFAULT 1;
