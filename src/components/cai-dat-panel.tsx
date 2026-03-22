@@ -12,6 +12,7 @@ type OwnerReceiptSetting = {
   accountName: string;
   qrImageUrl: string;
   qrImageDataUrl?: string;
+  logoImageDataUrl?: string;
   phieuGhiChu: string;
 };
 
@@ -30,9 +31,12 @@ const EMPTY_SETTING: OwnerReceiptSetting = {
 export default function CaiDatPanel() {
   const [form, setForm] = useState<OwnerReceiptSetting>(EMPTY_SETTING);
   const [qrFile, setQrFile] = useState<File | null>(null);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [deletingLogo, setDeletingLogo] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -57,6 +61,7 @@ export default function CaiDatPanel() {
           accountName: data.setting?.accountName ?? "",
           qrImageUrl: data.setting?.qrImageUrl ?? "",
           qrImageDataUrl: data.setting?.qrImageDataUrl ?? "",
+          logoImageDataUrl: data.setting?.logoImageDataUrl ?? "",
           phieuGhiChu: data.setting?.phieuGhiChu ?? "",
         });
       } catch {
@@ -78,10 +83,11 @@ export default function CaiDatPanel() {
     setError("");
     setSuccess("");
     try {
+      const { logoImageDataUrl: _logo, qrImageDataUrl: _qr, ...rest } = form;
       const res = await fetch("/api/cai-dat", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(rest),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -124,6 +130,58 @@ export default function CaiDatPanel() {
       setError("Không thể kết nối máy chủ");
     } finally {
       setUploading(false);
+    }
+  }
+
+  async function uploadLogoFile() {
+    if (!logoFile) {
+      setError("Vui lòng chọn ảnh logo trước khi upload");
+      return;
+    }
+
+    setUploadingLogo(true);
+    setError("");
+    setSuccess("");
+    try {
+      const fd = new FormData();
+      fd.append("file", logoFile);
+      fd.append("kind", "logo");
+      const res = await fetch("/api/cai-dat", {
+        method: "POST",
+        body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.message ?? "Không thể upload logo");
+        return;
+      }
+      setForm((prev) => ({ ...prev, logoImageDataUrl: data.logoImageDataUrl ?? "" }));
+      setLogoFile(null);
+      setSuccess("Đã upload logo — hiển thị trên phiếu tạm tính và phiếu giao.");
+    } catch {
+      setError("Không thể kết nối máy chủ");
+    } finally {
+      setUploadingLogo(false);
+    }
+  }
+
+  async function removeLogo() {
+    setDeletingLogo(true);
+    setError("");
+    setSuccess("");
+    try {
+      const res = await fetch("/api/cai-dat", { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.message ?? "Không thể xóa logo");
+        return;
+      }
+      setForm((prev) => ({ ...prev, logoImageDataUrl: "" }));
+      setSuccess("Đã xóa logo — phiếu dùng logo mặc định.");
+    } catch {
+      setError("Không thể kết nối máy chủ");
+    } finally {
+      setDeletingLogo(false);
     }
   }
 
@@ -201,6 +259,45 @@ export default function CaiDatPanel() {
             className="rounded-lg border border-slate-300 bg-white px-3 py-2 outline-none focus:border-blue-400"
             placeholder="Đoàn Hà Kim Ngân"
           />
+        </label>
+        <label className="grid gap-1 md:col-span-2">
+          <span className="text-sm font-medium text-slate-700">Logo trên phiếu tạm tính &amp; phiếu giao (lưu DB)</span>
+          <span className="text-xs text-slate-500">
+            PNG/JPG/WEBP/GIF, tối đa 2MB. Tròn trên phiếu như logo mặc định. Xóa logo để dùng lại ảnh mặc định.
+          </span>
+          <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              onChange={(e) => setLogoFile(e.target.files?.[0] ?? null)}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
+            />
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => void uploadLogoFile()}
+                disabled={loading || uploadingLogo}
+                className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+              >
+                {uploadingLogo ? "Đang upload..." : "Upload logo"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void removeLogo()}
+                disabled={loading || deletingLogo || !form.logoImageDataUrl}
+                className="rounded-xl border border-slate-400 px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-60"
+              >
+                {deletingLogo ? "Đang xóa..." : "Xóa logo"}
+              </button>
+            </div>
+          </div>
+          {form.logoImageDataUrl ? (
+            <img
+              src={form.logoImageDataUrl}
+              alt="Logo xem trước"
+              className="mt-2 h-20 w-20 rounded-full border border-slate-300 bg-white object-cover p-0.5"
+            />
+          ) : null}
         </label>
         <label className="grid gap-1 md:col-span-2">
           <span className="text-sm font-medium text-slate-700">Ghi chú trên phiếu tạm thu (khối GHI CHÚ)</span>

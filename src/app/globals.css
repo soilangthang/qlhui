@@ -38,6 +38,8 @@ body {
 
   #phieu-tam-thu-print,
   #phieu-tam-thu-print *,
+  #phieu-giao-hoi-print,
+  #phieu-giao-hoi-print *,
   #hui-vien-chi-tiet-print,
   #hui-vien-chi-tiet-print * {
     visibility: visible !important;
@@ -45,6 +47,7 @@ body {
 
   /* relative: nội dung tính đúng chiều cao, tránh trang 1 trống nửa dưới + trang 2 trắng (do min-h + absolute) */
   #phieu-tam-thu-print,
+  #phieu-giao-hoi-print,
   #hui-vien-chi-tiet-print {
     position: relative !important;
     left: auto !important;
@@ -59,17 +62,20 @@ body {
   }
 
   body:has(#phieu-tam-thu-print) main,
+  body:has(#phieu-giao-hoi-print) main,
   body:has(#hui-vien-chi-tiet-print) main {
     min-height: 0 !important;
     height: auto !important;
   }
 
   #phieu-tam-thu-print table,
+  #phieu-giao-hoi-print table,
   #hui-vien-chi-tiet-print table {
     break-inside: auto;
   }
 
   #phieu-tam-thu-print thead,
+  #phieu-giao-hoi-print thead,
   #hui-vien-chi-tiet-print thead {
     break-inside: avoid;
   }

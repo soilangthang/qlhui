@@ -137,10 +137,55 @@ export function participantMatchesMember(p: HuiLineParticipant, member: HuiMembe
   return false;
 }
 
+/**
+ * Sau khi xử lý một kỳ khui: nếu hụi viên hốt, tăng số chân chết (tối đa số chân của họ trên dây).
+ * Dùng thống nhất cho lịch sử DA và cho snapshot từ toàn bộ openings (kể cả CHO_GIAO_TIEN).
+ */
+function bumpDeadSlotsAfterMemberWonKy(
+  row: HuiLineDetailRow,
+  opening: Pick<HuiOpeningHistory, "winnerName" | "winnerPhone" | "winnerLegStt" | "winnerSlots">,
+  member: HuiMemberRef,
+  memberSlots: number,
+  deadSlots: number,
+  memberLegsStt: Set<number>,
+): number {
+  if (!openingWinnerMatchesMember(opening.winnerName, opening.winnerPhone, member)) {
+    return deadSlots;
+  }
+  const wLeg = opening.winnerLegStt;
+  if (wLeg != null && wLeg > 0) {
+    const matched = memberLegsStt.has(wLeg) ? 1 : 0;
+    const fallback = Math.min(memberSlots - deadSlots, Math.max(1, opening.winnerSlots || 1));
+    const inc = matched > 0 ? matched : Math.max(0, fallback);
+    return Math.min(memberSlots, deadSlots + inc);
+  }
+  const inc = Math.max(1, opening.winnerSlots || 1);
+  return Math.min(memberSlots, deadSlots + inc);
+}
+
+/** Tổng chân chết tích lũy (đã hốt ở các kỳ trước / kỳ hiện tại), để tính đóng: chân chết × mức dây + chân sống × mức góp kỳ. */
 export function deadSlotsOnRowForMember(row: HuiLineDetailRow, member: HuiMemberRef | null): number {
   if (!member) return 0;
-  const isWinner = openingWinnerMatchesMember(row.latestWinnerName, row.latestWinnerPhone, member);
-  if (!isWinner) return 0;
+  const memberSlots = row.participants.reduce(
+    (acc, p) => (participantMatchesMember(p, member) ? acc + 1 : acc),
+    0,
+  );
+  if (memberSlots <= 0) return 0;
+
+  const memberLegsStt = new Set(
+    row.participants.filter((p) => participantMatchesMember(p, member)).map((p) => p.legStt),
+  );
+
+  if (row.openings.length > 0) {
+    let dead = 0;
+    const sorted = [...row.openings].sort((a, b) => a.kyThu - b.kyThu);
+    for (const o of sorted) {
+      dead = bumpDeadSlotsAfterMemberWonKy(row, o, member, memberSlots, dead, memberLegsStt);
+    }
+    return dead;
+  }
+
+  if (!openingWinnerMatchesMember(row.latestWinnerName, row.latestWinnerPhone, member)) return 0;
   if (row.latestWinnerLegStt != null && row.latestWinnerLegStt > 0) {
     const matched = row.participants.reduce((acc, p) => {
       if (!participantMatchesMember(p, member)) return acc;
@@ -149,10 +194,6 @@ export function deadSlotsOnRowForMember(row: HuiLineDetailRow, member: HuiMember
     if (matched > 0) return matched;
   }
   const cap = Math.max(1, row.latestWinnerSlots);
-  const memberSlots = row.participants.reduce(
-    (acc, p) => (participantMatchesMember(p, member) ? acc + 1 : acc),
-    0,
-  );
   return Math.min(memberSlots, cap);
 }
 
@@ -167,8 +208,7 @@ export function futureDeadLegPayEstimate(row: HuiLineDetailRow, member: HuiMembe
   if (dead <= 0 || row.latestKy == null || row.latestKy <= 0) return 0;
   const remainingKy = Math.max(0, row.totalCycles - row.latestKy);
   if (remainingKy <= 0) return 0;
-  const perKy = row.latestContributionPerSlot || row.lineAmount;
-  return dead * perKy * remainingKy;
+  return dead * row.lineAmount * remainingKy;
 }
 
 export function formatDateDisplay(value: string | null) {
@@ -231,7 +271,7 @@ export function rowPayInPayOut(row: RowWithMemberSlots, member: HuiMemberRef | n
   const deadSlots = deadSlotsOnRowForMember(row, member);
   const liveSlots = Math.max(0, row.memberSlots - deadSlots);
   const contribution = row.latestContributionPerSlot || row.lineAmount;
-  const payIn = isWinner ? 0 : contribution * liveSlots;
+  const payIn = isWinner ? 0 : contribution * liveSlots + deadSlots * row.lineAmount;
   const payOut = isWinner
     ? hoiTienDaTruCoTheoNhieuChan(row.totalCycles, row.memberSlots, contribution, row.lineTienCo)
     : 0;
@@ -245,7 +285,8 @@ export function profitHienTai(row: RowWithMemberSlots, member: HuiMemberRef | nu
 }
 
 /**
- * Ước lượng thô: nếu không hốt thêm, trừ phần đóng còn lại (chân sống × kỳ còn lại × mức đóng).
+ * Ước lượng thô: nếu không hốt thêm, trừ phần đóng còn lại
+ * (chân sống × mức góp kỳ + chân chết × mức dây) × số kỳ còn lại.
  * Khi đã hốt trên dây hoặc dây đã đủ kỳ → trùng hiện tại.
  */
 export function profitManDay(row: RowWithMemberSlots, member: HuiMemberRef | null) {
@@ -253,9 +294,10 @@ export function profitManDay(row: RowWithMemberSlots, member: HuiMemberRef | nul
   const k = row.latestKy ?? 0;
   const remainingKy = Math.max(0, row.totalCycles - k);
   if (remainingKy <= 0) return hi;
-  const { isWinner, contribution, liveSlots } = rowPayInPayOut(row, member);
+  const { isWinner, contribution, liveSlots, deadSlots } = rowPayInPayOut(row, member);
   if (isWinner) return hi;
-  return hi - contribution * liveSlots * remainingKy;
+  const perKy = contribution * liveSlots + row.lineAmount * deadSlots;
+  return hi - perKy * remainingKy;
 }
 
 export function balanceAmDuong(row: RowWithMemberSlots, member: HuiMemberRef | null) {
@@ -315,17 +357,7 @@ export function computeMemberRealizedProfit(row: RowWithMemberSlots, member: Hui
       realizedPayOut += payOutDaTruCoForOpening(row, opening, memberSlots);
 
       // Triệt tiêu: winner kỳ đó không tính payIn.
-      // Sau đó cập nhật deadSlots cho kỳ sau.
-      const wLeg = opening.winnerLegStt;
-      if (wLeg != null && wLeg > 0) {
-        const matched = memberLegsStt.has(wLeg) ? 1 : 0;
-        const fallback = Math.min(memberSlots - deadSlots, Math.max(1, opening.winnerSlots || 1));
-        const inc = matched > 0 ? matched : Math.max(0, fallback);
-        deadSlots = Math.min(memberSlots, deadSlots + inc);
-      } else {
-        const inc = Math.max(1, opening.winnerSlots || 1);
-        deadSlots = Math.min(memberSlots, deadSlots + inc);
-      }
+      deadSlots = bumpDeadSlotsAfterMemberWonKy(row, opening, member, memberSlots, deadSlots, memberLegsStt);
     } else {
       const liveSlots = Math.max(0, memberSlots - deadSlots);
       // Dead leg vẫn phải đóng tới mãn dây, giá chân chết = mức giá dây.

@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import LogoutButton from "@/components/logout-button";
+import MobileBottomNav from "@/components/mobile-bottom-nav";
 import { CHU_HUI_TRIAL_DAYS } from "@/lib/chu-hui-trial";
 
 type UserProfile = { name: string; phone: string; rule: string };
@@ -33,7 +34,7 @@ function formatDateViFromIso(iso: string) {
 }
 
 const menus = [
-  { href: "/dashboard", label: "Dashboard" },
+  { href: "/dashboard", label: "Trang chủ" },
   { href: "/hui-vien", label: "Hụi Viên" },
   { href: "/day-hui", label: "Dây Hụi" },
   { href: "/thu-tien", label: "Thu tiền" },
@@ -86,7 +87,7 @@ export default function HuiShell({ children }: Readonly<{ children: React.ReactN
   }, [access, user?.rule, trialTick]);
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-sky-50 print:min-h-0 print:h-auto print:bg-white print:p-0">
+    <main className="min-h-screen min-w-0 w-full bg-gradient-to-b from-slate-50 via-white to-sky-50 print:min-h-0 print:h-auto print:bg-white print:p-0">
       <header className="border-b border-amber-900/25 bg-slate-950 shadow-md print:hidden">
         <div className="mx-auto flex max-w-[1400px] items-center justify-between gap-3 px-3 py-2.5 sm:px-5 sm:py-3">
           <Link
@@ -107,7 +108,7 @@ export default function HuiShell({ children }: Readonly<{ children: React.ReactN
           </Link>
           {user ? (
             <div className="flex shrink-0 items-center gap-2 sm:gap-4">
-              <div className="max-w-[min(100vw-12rem,360px)] text-right leading-tight sm:max-w-lg">
+              <div className="max-w-[min(20rem,calc(100vw-5rem))] text-right leading-tight sm:max-w-lg">
                 <p className="text-xs text-amber-100 sm:text-sm">
                   Chào Chủ Hụi : <span className="font-bold text-white">{user.name}</span>
                 </p>
@@ -161,9 +162,9 @@ export default function HuiShell({ children }: Readonly<{ children: React.ReactN
           </div>
         </div>
       ) : null}
-      <div className="px-2 py-6 md:px-4 md:py-8 print:p-0">
-      <section className="mx-auto grid w-full max-w-[1400px] gap-6 lg:grid-cols-[250px_minmax(0,1fr)] print:grid-cols-1 print:gap-0 print:min-h-0">
-        <aside className="h-fit rounded-2xl border border-slate-300 bg-white p-4 shadow-sm print:hidden">
+      <div className="min-w-0 max-w-full px-2 py-6 pb-24 md:px-4 md:py-8 lg:pb-8 print:p-0">
+      <section className="mx-auto grid min-w-0 w-full max-w-[1400px] gap-6 lg:grid-cols-[250px_minmax(0,1fr)] print:grid-cols-1 print:gap-0 print:min-h-0">
+        <aside className="hidden h-fit rounded-2xl border border-slate-300 bg-white p-4 shadow-sm print:hidden lg:block">
           <p className="px-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Chức năng chính</p>
           <nav className="mt-3 space-y-2">
             {menus.map((menu) => {
@@ -185,9 +186,10 @@ export default function HuiShell({ children }: Readonly<{ children: React.ReactN
           </nav>
         </aside>
 
-        <section className="min-h-[calc(100vh-8rem)] print:min-h-0 print:h-auto">{children}</section>
+        <section className="min-h-[calc(100vh-8rem)] min-w-0 max-w-full print:min-h-0 print:h-auto">{children}</section>
       </section>
       </div>
+      <MobileBottomNav key={pathname} pathname={pathname} />
     </main>
   );
 }

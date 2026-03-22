@@ -79,7 +79,7 @@ export async function receiptElementToPdfBlob(
   let imgWidthMm = pageWidthMm;
   let imgHeightMm = (canvas.height / canvas.width) * pageWidthMm;
   let offsetXMm = 0;
-  let offsetYMm = 0;
+  const offsetYMm = 0;
 
   if (imgHeightMm > pageHeightMm) {
     const ratio = pageHeightMm / imgHeightMm;

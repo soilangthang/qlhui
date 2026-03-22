@@ -241,11 +241,11 @@ export default function TheoDoiPanel({ initialLines }: { initialLines: TheoDoiLi
   );
 
   return (
-    <section className="min-h-[calc(100vh-140px)] rounded-2xl border border-slate-300 bg-white p-5 shadow-sm">
-      <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
-        <div>
+    <section className="min-h-[calc(100vh-140px)] w-full min-w-0 max-w-full rounded-2xl border border-slate-300 bg-white p-3 shadow-sm sm:p-5">
+      <div className="flex min-w-0 flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
           <h2 className="text-xl font-semibold text-slate-900">Theo dõi đóng tiền</h2>
-          <p className="mt-1 max-w-2xl text-sm text-slate-600">
+          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-slate-600">
             Chọn <span className="font-semibold">một dây hụi</span> trong danh sách bên trái để xem và đánh dấu hụi
             viên theo <span className="font-semibold">kỳ khui mới nhất</span>. Dây đã thu đủ / giao tiền có{" "}
             <span className="font-semibold text-emerald-700">tích xanh</span>. Khi có rất nhiều dây: danh sách{" "}
@@ -270,8 +270,8 @@ export default function TheoDoiPanel({ initialLines }: { initialLines: TheoDoiLi
           {lines.length === 0 ? "Chưa có dây hụi nào." : "Không có dây hoặc hụi viên khớp tìm kiếm."}
         </p>
       ) : (
-        <div className="mt-5 flex min-h-[min(70vh,640px)] flex-col gap-4 lg:min-h-[calc(100vh-12rem)] lg:flex-row lg:gap-0 lg:rounded-xl lg:border lg:border-slate-300 lg:shadow-sm">
-          <aside className="flex max-h-[min(52vh,480px)] flex-col rounded-xl border border-slate-300 bg-slate-50/80 lg:max-h-none lg:h-full lg:min-h-0 lg:w-[min(100%,300px)] lg:shrink-0 lg:rounded-none lg:border-0 lg:border-r lg:border-slate-300 lg:bg-slate-50">
+        <div className="mt-5 flex min-h-[min(70vh,640px)] w-full min-w-0 flex-col gap-4 lg:min-h-[calc(100vh-12rem)] lg:flex-row lg:gap-0 lg:rounded-xl lg:border lg:border-slate-300 lg:shadow-sm">
+          <aside className="flex max-h-[min(52vh,480px)] w-full min-w-0 flex-col rounded-xl border border-slate-300 bg-slate-50/80 lg:max-h-none lg:h-full lg:min-h-0 lg:w-[min(100%,300px)] lg:shrink-0 lg:rounded-none lg:border-0 lg:border-r lg:border-slate-300 lg:bg-slate-50">
             <div className="sticky top-0 z-10 shrink-0 border-b border-slate-200 bg-slate-50 px-3 py-2.5">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Dây hụi</p>
               <p className="mt-0.5 text-xs text-slate-600">
@@ -410,11 +410,11 @@ export default function TheoDoiPanel({ initialLines }: { initialLines: TheoDoiLi
             </ul>
           </aside>
 
-          <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-slate-300 bg-white lg:rounded-none lg:border-0">
+          <div className="min-w-0 w-full flex-1 overflow-hidden rounded-xl border border-slate-300 bg-white lg:rounded-none lg:border-0">
             {activeLine ? (
-              <article className="flex h-full min-h-[320px] flex-col">
-                <div className="flex flex-col gap-1 border-b border-slate-200 bg-slate-50/90 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
+              <article className="flex h-full min-h-[320px] min-w-0 flex-col">
+                <div className="flex flex-col gap-1 border-b border-slate-200 bg-slate-50/90 px-3 py-3 sm:px-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
                     <h3 className="text-lg font-bold text-slate-900">{activeLine.lineName}</h3>
                     <p className="text-xs leading-relaxed text-slate-600">
                       <span>
@@ -447,12 +447,14 @@ export default function TheoDoiPanel({ initialLines }: { initialLines: TheoDoiLi
                       </span>
                     </p>
                   ) : (
-                    <p className="text-sm font-medium text-amber-800">Chưa có kỳ khui — chưa đánh dấu được.</p>
+                    <p className="shrink-0 text-sm font-medium text-amber-800 sm:max-w-sm">
+                      Chưa có kỳ khui — chưa đánh dấu được.
+                    </p>
                   )}
                 </div>
 
-                <div className="flex-1 overflow-x-auto">
-                  <table className="min-w-full table-fixed text-center text-sm">
+                <div className="min-w-0 flex-1 overflow-x-auto overscroll-x-contain">
+                  <table className="w-full min-w-[640px] table-fixed text-center text-sm sm:min-w-[680px]">
                     <thead className="bg-white text-slate-700">
                       <tr className="border-b border-slate-300">
                         <th className="w-14 border-r border-slate-300 px-2 py-2 font-bold">STT</th>
@@ -462,7 +464,7 @@ export default function TheoDoiPanel({ initialLines }: { initialLines: TheoDoiLi
                         <th className="border-r border-slate-300 px-2 py-2 font-bold">Chân (STT)</th>
                         <th
                           className="w-36 border-r border-slate-300 px-2 py-2 font-bold"
-                          title="Tiền đóng kỳ hiện tại (chân sống × mức góp kỳ)"
+                          title="Tiền đóng kỳ hiện tại: chân sống × mức góp kỳ + chân chết × mức dây (người hốt kỳ này: trừ ngang)"
                         >
                           Số tiền
                         </th>

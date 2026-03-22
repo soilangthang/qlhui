@@ -146,8 +146,12 @@ model OwnerReceiptSetting {
   qrImageUrl   String   @default("")
   /** Nội dung khối GHI CHÚ trên phiếu tạm thu; mỗi dòng một ý (xuống dòng). */
   phieuGhiChu  String   @default("") @db.Text
-  qrUpload     OwnerReceiptQrUpload?
-  updatedAt    DateTime @updatedAt
+  /** Logo phiếu (PNG/JPG/…) — lưu cùng bản ghi cài đặt, không cần bảng phụ. */
+  logoImageData Bytes?
+  logoMimeType  String?
+  logoFileName  String?
+  qrUpload      OwnerReceiptQrUpload?
+  updatedAt     DateTime @updatedAt
 }
 
 model OwnerReceiptQrUpload {

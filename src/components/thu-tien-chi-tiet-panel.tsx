@@ -15,6 +15,7 @@ import {
   type HuiLineDetailRow,
   type HuiMemberRef,
 } from "@/lib/hui-member-line-metrics";
+import { formatViDateTime } from "@/lib/receipt-datetime";
 import { filterRowsForPhieuTamThu } from "@/lib/local-calendar";
 import { slipNoteLinesFromSetting } from "@/lib/phieu-ghi-chu-default";
 import {
@@ -24,6 +25,7 @@ import {
   safePdfFileBase,
   sharePdfFile,
 } from "@/lib/receipt-pdf";
+import PhieuGiaoHuiSection, { type PhieuGiaoSlipPayload } from "@/components/phieu-giao-hui-block";
 
 /**
  * Thu phóng khi in để gom phiếu vào 1 trang A4.
@@ -47,6 +49,7 @@ type ReceiptSetting = {
   accountName: string;
   qrImageUrl?: string;
   qrImageDataUrl?: string;
+  logoImageDataUrl?: string;
   /** Để trống → dùng mẫu mặc định trên phiếu. */
   phieuGhiChu?: string;
 };
@@ -56,11 +59,14 @@ export default function ThuTienChiTietPanel({
   rows,
   defaultMemberId,
   receiptSetting,
+  deliverySlip,
 }: {
   members: HuiMemberRef[];
   rows: HuiLineDetailRow[];
   defaultMemberId: string;
   receiptSetting: ReceiptSetting;
+  /** Theo kỳ mở trang chi tiết — phiếu giao tiền cho người hốt. */
+  deliverySlip?: PhieuGiaoSlipPayload | null;
 }) {
   const [memberId, setMemberId] = useState(defaultMemberId || members[0]?.id || "");
   const selectedMember = useMemo(
@@ -86,20 +92,17 @@ export default function ThuTienChiTietPanel({
       0,
     );
     const liveSlots = Math.max(0, totalSlots - deadSlots);
-    // Dây đã hốt: không cộng tiền đóng (trừ ngang với tiền chủ giao, kể cả còn chân sống trên cùng dây).
+    // Dây đã hốt kỳ đang tính: không cộng tiền đóng (trừ ngang). Còn lại: chân sống × góp kỳ + chân chết × mức dây.
     const totalPayIn = receiptRows.reduce((acc, row) => {
       if (isMemberWinnerOnRow(row, selectedMember)) return acc;
       const contribution = row.latestContributionPerSlot || row.lineAmount;
       const dead = deadSlotsOnRowForMember(row, selectedMember);
       const live = Math.max(0, row.memberSlots - dead);
-      return acc + contribution * live;
+      return acc + contribution * live + dead * row.lineAmount;
     }, 0);
     const totalPayOut = receiptRows.reduce((acc, row) => {
-      const isWinner =
-        selectedMember &&
-        row.latestWinnerName === selectedMember.name &&
-        row.latestWinnerPhone === selectedMember.phone;
       const contribution = row.latestContributionPerSlot || row.lineAmount;
+      const isWinner = isMemberWinnerOnRow(row, selectedMember);
       return acc +
         (isWinner
           ? hoiTienDaTruCoTheoNhieuChan(row.totalCycles, row.memberSlots, contribution, row.lineTienCo)
@@ -117,7 +120,7 @@ export default function ThuTienChiTietPanel({
       const contribution = row.latestContributionPerSlot || row.lineAmount;
       const dead = deadSlotsOnRowForMember(row, selectedMember);
       const live = Math.max(0, row.memberSlots - dead);
-      const payIn = isWinner ? 0 : contribution * live;
+      const payIn = isWinner ? 0 : contribution * live + dead * row.lineAmount;
       const payOut = isWinner
         ? hoiTienDaTruCoTheoNhieuChan(row.totalCycles, row.memberSlots, contribution, row.lineTienCo)
         : 0;
@@ -144,7 +147,18 @@ export default function ThuTienChiTietPanel({
     };
   }, [receiptRows, selectedMember]);
 
-  const currentDateText = new Date().toLocaleString("vi-VN");
+  const [receiptNow, setReceiptNow] = useState(() => new Date());
+  useEffect(() => {
+    const bump = () => setReceiptNow(new Date());
+    window.addEventListener("beforeprint", bump);
+    const id = window.setInterval(bump, 60_000);
+    return () => {
+      window.removeEventListener("beforeprint", bump);
+      window.clearInterval(id);
+    };
+  }, []);
+
+  const currentDateText = formatViDateTime(receiptNow);
   const qrValue = `${receiptSetting.bankName || "BANK"}|${receiptSetting.bankAccount || "000000"}|${
     receiptSetting.accountName || receiptSetting.ownerName
   }`;
@@ -173,6 +187,7 @@ export default function ThuTienChiTietPanel({
   const handleSharePdf = useCallback(async () => {
     const el = printRootRef.current;
     if (!el) return;
+    setReceiptNow(new Date());
     setShareHint(null);
     setShareBusy(true);
     setPdfCapturing(true);
@@ -272,6 +287,10 @@ export default function ThuTienChiTietPanel({
 
   return (
     <section className="min-h-[calc(100vh-140px)] rounded-2xl border border-slate-300 bg-white p-4 shadow-sm print:min-h-0 print:h-auto print:border-0 print:p-0 print:shadow-none">
+      {deliverySlip ? (
+        <PhieuGiaoHuiSection payload={deliverySlip} receiptSetting={receiptSetting} />
+      ) : null}
+
       <div className="mb-4 flex flex-col gap-3 print:hidden">
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <p className="max-w-xl text-sm text-slate-600">
@@ -327,7 +346,18 @@ export default function ThuTienChiTietPanel({
         className="mx-auto w-full max-w-[1200px] overflow-hidden rounded-xl border border-slate-300 bg-white print:max-w-none print:rounded-none print:border-0 print:shadow-none print:leading-tight"
       >
         <div className="grid gap-3 border-b border-slate-300 p-4 md:grid-cols-2 print:gap-1 print:p-2">
-        <div className="text-sm font-medium text-slate-800">
+        <div className="flex gap-3 text-sm font-medium text-slate-800">
+          <img
+            src={receiptSetting.logoImageDataUrl?.trim() || "/app-logo.png"}
+            alt=""
+            width={56}
+            height={56}
+            crossOrigin={
+              (receiptSetting.logoImageDataUrl?.trim() || "").startsWith("data:") ? undefined : "anonymous"
+            }
+            className="h-14 w-14 shrink-0 rounded-full object-cover print:h-12 print:w-12"
+          />
+          <div className="min-w-0">
           <p className="text-lg font-bold print:text-base">{receiptSetting.huiName}</p>
           <div className="mt-1 grid grid-cols-[90px_1fr] items-start gap-x-2 gap-y-0.5 text-[17px] leading-7 print:grid-cols-[72px_1fr] print:text-xs print:leading-snug">
             <span className="font-semibold">Địa chỉ:</span>
@@ -341,6 +371,7 @@ export default function ThuTienChiTietPanel({
             </span>
             <span className="font-semibold">Chủ TK:</span>
             <span>{ownerDisplayName}</span>
+          </div>
           </div>
         </div>
         <div className="text-center text-slate-900">
@@ -390,7 +421,7 @@ export default function ThuTienChiTietPanel({
               <th className="border-r border-slate-300 px-3 py-2 text-center">Sống</th>
               <th
                 className="border-r border-slate-300 px-3 py-2 text-center"
-                title="Chỉ các dây chưa hốt; dây đã hốt trừ ngang với chủ nên không tính đóng"
+                title="Tổng tiền đóng kỳ đang tính: chân sống × mức góp kỳ + chân chết × mức dây. Dây đã hốt kỳ này trừ ngang với chủ nên không cộng."
               >
                 Hụi sống (đã đóng)
               </th>
@@ -402,7 +433,7 @@ export default function ThuTienChiTietPanel({
               </th>
               <th
                 className="border-r border-slate-300 px-3 py-2 text-center"
-                title="Theo quy ước trừ ngang với chủ: dây đã hốt không tính thêm cột này trên phiếu"
+                title="Ước lượng phần chân chết còn phải đóng tới mãn: chân chết × mức dây × số kỳ còn lại (chỉ hụi viên chưa hốt kỳ đang tính)."
               >
                 Hụi Chết ( cần đóng )
               </th>
@@ -449,7 +480,7 @@ export default function ThuTienChiTietPanel({
               <th className="w-16 border-r border-slate-300 px-2 py-3 text-center print:w-8">Sống</th>
               <th
                 className="border-r border-slate-300 px-2 py-3 text-center"
-                title="Dây đã hốt: trừ ngang với tiền chủ giao, không phải đóng riêng"
+                title="Kỳ đang tính: chân sống × mức góp kỳ + chân chết × mức dây. Dây đã hốt kỳ này: trừ ngang với chủ, không ghi số đóng."
               >
                 Tiền đóng
               </th>
@@ -485,7 +516,7 @@ export default function ThuTienChiTietPanel({
                 const deadSlots = deadSlotsOnRowForMember(row, selectedMember);
                 const liveSlots = Math.max(0, row.memberSlots - deadSlots);
                 const contribution = row.latestContributionPerSlot || row.lineAmount;
-                const payIn = isWinner ? 0 : contribution * liveSlots;
+                const payIn = isWinner ? 0 : contribution * liveSlots + deadSlots * row.lineAmount;
                 const payOut = isWinner
                   ? hoiTienDaTruCoTheoNhieuChan(row.totalCycles, row.memberSlots, contribution, row.lineTienCo)
                   : 0;
@@ -532,7 +563,9 @@ export default function ThuTienChiTietPanel({
             <span className="font-semibold">Trừ ngang</span> (cột Tiền đóng): hụi viên{" "}
             <span className="font-semibold">đã hốt kỳ đang tính</span> của dây đó không nộp tiền đóng riêng kỳ
             này — khoản được <span className="font-semibold">bù trừ với tiền chủ hụi giao</span>, nên không hiện số
-            đồng như các dây vẫn phải đóng.
+            đồng như các dây vẫn phải đóng. Các dây khác:{" "}
+            <span className="font-semibold">chân sống</span> theo mức góp kỳ,{" "}
+            <span className="font-semibold">chân chết</span> (đã hốt trước đó) theo mức dây mỗi kỳ.
           </p>
         </div>
         <p

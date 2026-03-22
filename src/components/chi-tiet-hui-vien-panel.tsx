@@ -48,6 +48,8 @@ type ReceiptSetting = {
   accountName: string;
   qrImageUrl?: string;
   qrImageDataUrl?: string;
+  /** Logo tròn giống phiếu tạm tính (Cài đặt / DB). */
+  logoImageDataUrl?: string;
 };
 
 export default function ChiTietHuiVienPanel({
@@ -103,6 +105,9 @@ export default function ChiTietHuiVienPanel({
 
   const ownerPhone = receiptSetting.phone?.trim() || "Chưa cập nhật";
   const ownerAddress = receiptSetting.address?.trim() || "Chưa cập nhật";
+  const ownerBankAccount = receiptSetting.bankAccount?.trim() || "Chưa cập nhật";
+  const ownerBankName = receiptSetting.bankName?.trim() || "";
+  const ownerDisplayName = (receiptSetting.accountName || receiptSetting.ownerName || "Chủ hụi").trim();
 
   const handleSharePdf = useCallback(async () => {
     const el = printRootRef.current;
@@ -261,20 +266,32 @@ export default function ChiTietHuiVienPanel({
         className="mx-auto w-full max-w-[1200px] overflow-hidden rounded-xl border border-slate-300 bg-white print:max-w-none print:overflow-visible print:rounded-none print:border-0 print:shadow-none print:leading-tight"
       >
         <div className="grid gap-3 border-b border-slate-300 p-4 md:grid-cols-2 print:gap-1 print:p-2">
-          <div className="text-sm font-medium text-slate-800">
-            <p className="text-lg font-bold print:text-base">
-              {receiptSetting.huiName}
-              {receiptSetting.ownerName ? (
-                <span className="block text-base font-semibold text-slate-700 print:text-sm">
-                  {receiptSetting.ownerName}
+          <div className="flex gap-3 text-sm font-medium text-slate-800">
+            <img
+              src={receiptSetting.logoImageDataUrl?.trim() || "/app-logo.png"}
+              alt=""
+              width={56}
+              height={56}
+              crossOrigin={
+                (receiptSetting.logoImageDataUrl?.trim() || "").startsWith("data:") ? undefined : "anonymous"
+              }
+              className="h-14 w-14 shrink-0 rounded-full object-cover print:h-12 print:w-12"
+            />
+            <div className="min-w-0">
+              <p className="text-lg font-bold print:text-base">{receiptSetting.huiName}</p>
+              <div className="mt-1 grid grid-cols-[90px_1fr] items-start gap-x-2 gap-y-0.5 text-[17px] leading-7 print:grid-cols-[72px_1fr] print:text-xs print:leading-snug">
+                <span className="font-semibold">Địa chỉ:</span>
+                <span>{ownerAddress}</span>
+                <span className="font-semibold">Điện thoại:</span>
+                <span>{ownerPhone}</span>
+                <span className="font-semibold">STK:</span>
+                <span>
+                  {ownerBankAccount}
+                  {ownerBankName ? ` - ${ownerBankName}` : ""}
                 </span>
-              ) : null}
-            </p>
-            <div className="mt-1 grid grid-cols-[90px_1fr] items-start gap-x-2 gap-y-0.5 text-[15px] leading-6 print:grid-cols-[72px_1fr] print:text-xs print:leading-snug">
-              <span className="font-semibold">Địa chỉ:</span>
-              <span>{ownerAddress}</span>
-              <span className="font-semibold">Điện thoại:</span>
-              <span>{ownerPhone}</span>
+                <span className="font-semibold">Chủ TK:</span>
+                <span>{ownerDisplayName}</span>
+              </div>
             </div>
           </div>
           <div className="flex flex-col items-center justify-center text-center text-slate-900">

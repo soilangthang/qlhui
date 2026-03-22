@@ -37,6 +37,24 @@ type AssignedGroup = {
   legs: HuiLeg[];
 };
 
+type LineFormField = "name" | "soChan" | "mucHuiThang" | "ngayMo" | "tienCo";
+
+function parseMoneyToDecimalLocal(input: string) {
+  const normalized = input.replace(/[^\d.-]/g, "");
+  if (!normalized) return null;
+  const numeric = Number(normalized);
+  if (Number.isNaN(numeric)) return null;
+  return numeric.toFixed(2);
+}
+
+function parseNgayMoLocal(value: string) {
+  const [d, m, y] = value.split("/").map(Number);
+  if (!d || !m || !y) return null;
+  const date = new Date(y, m - 1, d);
+  if (Number.isNaN(date.getTime())) return null;
+  return date;
+}
+
 export default function DayHuiPanel() {
   const router = useRouter();
   const [lines, setLines] = useState<DayHui[]>([]);
@@ -52,6 +70,7 @@ export default function DayHuiPanel() {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<LineFormField, string>>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [openChanLineId, setOpenChanLineId] = useState<string | null>(null);
@@ -165,10 +184,50 @@ export default function DayHuiPanel() {
   }
 
   function formatMoneyVN(value: string | null) {
-    if (!value) return "-";
+    if (value == null || value === "") return "0đ";
     const n = Number(value);
     if (Number.isNaN(n)) return value;
     return `${n.toLocaleString("vi-VN")}đ`;
+  }
+
+  function validateLineForm(): Partial<Record<LineFormField, string>> {
+    const next: Partial<Record<LineFormField, string>> = {};
+    const nameTrim = name.trim();
+    if (!nameTrim) next.name = "Vui lòng nhập tên dây hụi";
+    else if (nameTrim.length < 2) next.name = "Tên dây hụi phải từ 2 ký tự";
+
+    if (!soChan.trim()) next.soChan = "Vui lòng nhập số chân";
+    else {
+      const n = Number(soChan);
+      if (!Number.isInteger(n) || n < 1) next.soChan = "Số chân phải là số nguyên từ 1 trở lên";
+    }
+
+    const mucTrim = mucHuiThang.trim();
+    if (!mucTrim) next.mucHuiThang = "Vui lòng nhập mức hụi/tháng";
+    else {
+      const dec = parseMoneyToDecimalLocal(mucTrim);
+      if (!dec || Number(dec) <= 0) next.mucHuiThang = "Mức hụi phải là số tiền hợp lệ, lớn hơn 0";
+    }
+
+    const ngayTrim = ngayMo.trim();
+    if (!ngayTrim) next.ngayMo = "Vui lòng chọn ngày mở trên lịch";
+    else if (!parseNgayMoLocal(ngayTrim)) next.ngayMo = "Ngày mở không hợp lệ (định dạng dd/mm/yyyy)";
+
+    const coTrim = tienCo.trim();
+    if (!coTrim) next.tienCo = "Vui lòng nhập tiền cò (có thể nhập 0 nếu không lấy cò)";
+    else {
+      const dec = parseMoneyToDecimalLocal(coTrim);
+      if (!dec) next.tienCo = "Tiền cò không hợp lệ";
+      else if (Number(dec) < 0) next.tienCo = "Tiền cò không được âm";
+    }
+
+    return next;
+  }
+
+  function fieldInputClass(field: LineFormField) {
+    return fieldErrors[field]
+      ? "rounded-xl border border-rose-400 bg-white px-3 py-2 outline-none focus:border-rose-500"
+      : "rounded-xl border border-slate-300 bg-white px-3 py-2 outline-none focus:border-blue-400";
   }
 
   function formatStatus(line: DayHui) {
@@ -209,7 +268,13 @@ export default function DayHuiPanel() {
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!name.trim() || !soChan.trim() || !mucHuiThang.trim() || !ngayMo.trim()) return;
+    const validation = validateLineForm();
+    if (Object.keys(validation).length > 0) {
+      setFieldErrors(validation);
+      setError("Vui lòng nhập đủ và kiểm tra lại các trường được đánh dấu.");
+      return;
+    }
+    setFieldErrors({});
     setSubmitting(true);
     setError("");
 
@@ -243,7 +308,7 @@ export default function DayHuiPanel() {
                   name: name.trim(),
                   soChan: Number(soChan),
                   mucHuiThang: mucHuiThang.trim(),
-                  tienCo: tienCo.trim() || null,
+                  tienCo: tienCo.trim(),
                   chuKy,
                   ngayMo: ngayMo.trim(),
                 }
@@ -281,6 +346,8 @@ export default function DayHuiPanel() {
       setError("Dây hụi đã khui, không thể chỉnh sửa.");
       return;
     }
+    setFieldErrors({});
+    setError("");
     setEditingId(line.id);
     setName(line.name);
     setSoChan(String(line.soChan));
@@ -496,7 +563,16 @@ export default function DayHuiPanel() {
         </div>
         <button
           type="button"
-          onClick={() => setShowForm((v) => !v)}
+          onClick={() => {
+            setShowForm((v) => {
+              const next = !v;
+              if (next) {
+                setFieldErrors({});
+                setError("");
+              }
+              return next;
+            });
+          }}
           className="shrink-0 self-start rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white sm:self-auto"
         >
           {showForm ? "Đóng" : "Thêm dây hụi"}
@@ -505,41 +581,84 @@ export default function DayHuiPanel() {
 
       {showForm ? (
         <form onSubmit={onSubmit} className="mt-4 grid gap-3 rounded-xl border border-slate-300 bg-slate-50 p-4 md:grid-cols-2">
-          <input
-            className="rounded-xl border border-slate-300 bg-white px-3 py-2 outline-none focus:border-blue-400"
-            placeholder="Tên dây hụi"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-          />
-          <input
-            className="rounded-xl border border-slate-300 bg-white px-3 py-2 outline-none focus:border-blue-400"
-            placeholder="Số chân"
-            type="number"
-            min={1}
-            value={soChan}
-            onChange={(e) => setSoChan(e.target.value)}
-            required
-          />
-          <input
-            className="rounded-xl border border-slate-300 bg-white px-3 py-2 outline-none focus:border-blue-400"
-            placeholder="Mức hụi / tháng (vd: 2000000)"
-            value={mucHuiThang}
-            onChange={(e) => setMucHuiThang(e.target.value)}
-            required
-          />
-          <div className="relative">
+          <div className="flex flex-col gap-1">
+            <input
+              id="line-form-name"
+              className={fieldInputClass("name")}
+              placeholder="Tên dây hụi"
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                setFieldErrors((p) => ({ ...p, name: undefined }));
+              }}
+              aria-invalid={Boolean(fieldErrors.name)}
+              aria-describedby={fieldErrors.name ? "line-form-name-hint" : undefined}
+            />
+            {fieldErrors.name ? (
+              <p id="line-form-name-hint" className="text-xs text-rose-600">
+                {fieldErrors.name}
+              </p>
+            ) : null}
+          </div>
+          <div className="flex flex-col gap-1">
+            <input
+              id="line-form-soChan"
+              className={fieldInputClass("soChan")}
+              placeholder="Số chân"
+              type="number"
+              min={1}
+              value={soChan}
+              onChange={(e) => {
+                setSoChan(e.target.value);
+                setFieldErrors((p) => ({ ...p, soChan: undefined }));
+              }}
+              aria-invalid={Boolean(fieldErrors.soChan)}
+              aria-describedby={fieldErrors.soChan ? "line-form-soChan-hint" : undefined}
+            />
+            {fieldErrors.soChan ? (
+              <p id="line-form-soChan-hint" className="text-xs text-rose-600">
+                {fieldErrors.soChan}
+              </p>
+            ) : null}
+          </div>
+          <div className="flex flex-col gap-1">
+            <input
+              id="line-form-mucHui"
+              className={fieldInputClass("mucHuiThang")}
+              placeholder="Mức hụi / tháng (vd: 2000000)"
+              value={mucHuiThang}
+              onChange={(e) => {
+                setMucHuiThang(e.target.value);
+                setFieldErrors((p) => ({ ...p, mucHuiThang: undefined }));
+              }}
+              aria-invalid={Boolean(fieldErrors.mucHuiThang)}
+              aria-describedby={fieldErrors.mucHuiThang ? "line-form-mucHui-hint" : undefined}
+            />
+            {fieldErrors.mucHuiThang ? (
+              <p id="line-form-mucHui-hint" className="text-xs text-rose-600">
+                {fieldErrors.mucHuiThang}
+              </p>
+            ) : null}
+          </div>
+          <div className="relative flex flex-col gap-1">
             <button
               type="button"
+              id="line-form-ngayMo"
               onClick={() => setCalendarOpen((v) => !v)}
-              className="flex w-full items-center justify-between rounded-xl border border-slate-300 bg-white px-3 py-2 text-left outline-none focus:border-blue-400"
+              className={
+                fieldErrors.ngayMo
+                  ? "flex w-full items-center justify-between rounded-xl border border-rose-400 bg-white px-3 py-2 text-left outline-none focus:border-rose-500"
+                  : "flex w-full items-center justify-between rounded-xl border border-slate-300 bg-white px-3 py-2 text-left outline-none focus:border-blue-400"
+              }
+              aria-invalid={Boolean(fieldErrors.ngayMo)}
+              aria-describedby={fieldErrors.ngayMo ? "line-form-ngayMo-hint" : undefined}
             >
               <span>{ngayMo || "Ngày mở (chọn trên lịch)"}</span>
               <span className="ml-3 rounded-lg bg-blue-100 px-2 py-1 text-sm font-bold text-blue-700">📅</span>
             </button>
 
             {calendarOpen ? (
-              <div className="absolute z-20 mt-2 w-[360px] rounded-2xl border border-slate-300 bg-white p-4 shadow-xl">
+              <div className="absolute left-0 top-full z-20 mt-2 w-[360px] rounded-2xl border border-slate-300 bg-white p-4 shadow-xl">
                 <div className="mb-3 flex items-center justify-between">
                   <button
                     type="button"
@@ -586,6 +705,7 @@ export default function DayHuiPanel() {
                         onClick={() => {
                           setNgayMo(formatDateDisplay(cell.date!));
                           setCalendarOpen(false);
+                          setFieldErrors((p) => ({ ...p, ngayMo: undefined }));
                         }}
                         className={`h-10 rounded-lg text-sm font-semibold transition ${
                           selected
@@ -602,14 +722,32 @@ export default function DayHuiPanel() {
                 </div>
               </div>
             ) : null}
+            {fieldErrors.ngayMo ? (
+              <p id="line-form-ngayMo-hint" className="text-xs text-rose-600">
+                {fieldErrors.ngayMo}
+              </p>
+            ) : null}
           </div>
 
-          <input
-            className="rounded-xl border border-slate-300 bg-white px-3 py-2 outline-none focus:border-blue-400"
-            placeholder="Tiền cò (vd: 500000)"
-            value={tienCo}
-            onChange={(e) => setTienCo(e.target.value)}
-          />
+          <div className="flex flex-col gap-1">
+            <input
+              id="line-form-tienCo"
+              className={fieldInputClass("tienCo")}
+              placeholder="Tiền cò (vd: 500000, hoặc 0)"
+              value={tienCo}
+              onChange={(e) => {
+                setTienCo(e.target.value);
+                setFieldErrors((p) => ({ ...p, tienCo: undefined }));
+              }}
+              aria-invalid={Boolean(fieldErrors.tienCo)}
+              aria-describedby={fieldErrors.tienCo ? "line-form-tienCo-hint" : undefined}
+            />
+            {fieldErrors.tienCo ? (
+              <p id="line-form-tienCo-hint" className="text-xs text-rose-600">
+                {fieldErrors.tienCo}
+              </p>
+            ) : null}
+          </div>
           <select
             className="rounded-xl border border-slate-300 bg-white px-3 py-2 outline-none focus:border-blue-400"
             value={chuKy}
@@ -633,6 +771,8 @@ export default function DayHuiPanel() {
                 type="button"
                 onClick={() => {
                   setEditingId(null);
+                  setFieldErrors({});
+                  setError("");
                   setName("");
                   setSoChan("");
                   setMucHuiThang("");

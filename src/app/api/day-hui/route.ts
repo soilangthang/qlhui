@@ -9,7 +9,7 @@ const dayHuiSchema = z.object({
   name: z.string().min(2, "Tên dây hụi phải từ 2 ký tự"),
   soChan: z.number().int().min(1, "Số chân phải lớn hơn 0"),
   mucHuiThang: z.string().min(1, "Vui lòng nhập mức hụi/tháng"),
-  tienCo: z.string().optional(),
+  tienCo: z.string().min(1, "Vui lòng nhập tiền cò (có thể nhập 0 nếu không lấy cò)"),
   chuKy: z.enum(["NGAY", "THANG", "NAM"]).default("THANG"),
   ngayMo: z.string().min(8, "Ngày mở không hợp lệ"),
 });
@@ -113,13 +113,16 @@ export async function POST(request: Request) {
     const { name, soChan, mucHuiThang, tienCo, chuKy, ngayMo } = parsed.data;
 
     const mucHuiDecimal = parseMoneyToDecimal(mucHuiThang);
-    if (!mucHuiDecimal) {
+    if (!mucHuiDecimal || Number(mucHuiDecimal) <= 0) {
       return NextResponse.json({ message: "Mức hụi/tháng không hợp lệ" }, { status: 400 });
     }
 
-    const tienCoDecimal = tienCo?.trim() ? parseMoneyToDecimal(tienCo) : null;
-    if (tienCo?.trim() && !tienCoDecimal) {
+    const tienCoDecimal = parseMoneyToDecimal(tienCo);
+    if (!tienCoDecimal) {
       return NextResponse.json({ message: "Tiền cò không hợp lệ" }, { status: 400 });
+    }
+    if (Number(tienCoDecimal) < 0) {
+      return NextResponse.json({ message: "Tiền cò không được âm" }, { status: 400 });
     }
 
     const ngayMoDate = parseDisplayDate(ngayMo);

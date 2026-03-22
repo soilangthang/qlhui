@@ -1,3 +1,4 @@
+import { getOwnerReceiptLogoDataUrl } from "@/lib/owner-receipt-logo";
 import { prisma } from "@/lib/prisma";
 import { parseMemberIdFromNote } from "@/lib/member-tracking-key";
 
@@ -68,6 +69,8 @@ export async function loadThuTienChiTietPanelData(userId: string) {
       qrUpload: null,
     } as const);
 
+  const logoImageDataUrl = await getOwnerReceiptLogoDataUrl(userId);
+
   const receiptSettingForClient = {
     huiName: receiptSetting.huiName,
     ownerName: receiptSetting.ownerName,
@@ -80,6 +83,7 @@ export async function loadThuTienChiTietPanelData(userId: string) {
     qrImageDataUrl: receiptSetting.qrUpload
       ? `data:${receiptSetting.qrUpload.mimeType};base64,${Buffer.from(receiptSetting.qrUpload.imageData).toString("base64")}`
       : "",
+    logoImageDataUrl,
     phieuGhiChu: receiptSetting.phieuGhiChu ?? "",
   };
 

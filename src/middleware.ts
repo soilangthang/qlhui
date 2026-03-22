@@ -39,20 +39,30 @@ async function readAuth(request: NextRequest): Promise<
   }
 }
 
-/** null = không xác định (lỗi mạng) — không ép redirect. */
+const CHU_HUI_ME_FETCH_MS = 2500;
+
+/**
+ * null = không xác định — không ép redirect.
+ * Có timeout để tránh treo vĩnh viễn: gọi nội bộ /api trong middleware trên dev đôi khi deadlock (request chờ middleware, middleware chờ API).
+ */
 async function fetchChuHuiAccessLocked(request: NextRequest): Promise<boolean | null> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), CHU_HUI_ME_FETCH_MS);
   try {
     const url = new URL("/api/auth/me", request.nextUrl.origin);
     const res = await fetch(url, {
       headers: { cookie: request.headers.get("cookie") ?? "" },
       cache: "no-store",
+      signal: controller.signal,
     });
+    clearTimeout(timeoutId);
     if (!res.ok) return null;
     const data = (await res.json()) as { access?: { locked?: boolean } };
     if (data.access?.locked === true) return true;
     if (data.access?.locked === false) return false;
     return null;
   } catch {
+    clearTimeout(timeoutId);
     return null;
   }
 }
@@ -78,6 +88,7 @@ function isChuHuiRoute(path: string) {
     "/chi-tiet-hui-vien",
     "/lien-he",
     "/quan-ly",
+    "/cac-chuc-nang",
   ];
   for (const r of roots) {
     if (path === r || path.startsWith(`${r}/`)) return true;
@@ -154,6 +165,11 @@ export async function middleware(request: NextRequest) {
     if (locked === true) return redirectHetHan();
   }
 
+  /** Tránh phụ thuộc redirect() trong RSC gốc — một số bản Turbopack có thể render trắng khi chỉ redirect ở page. */
+  if (path === "/" && !isApi) {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
+
   return NextResponse.next();
 }
 
@@ -178,6 +194,8 @@ export const config = {
     "/chi-tiet-hui-vien/:path*",
     "/lien-he",
     "/lien-he/:path*",
+    "/cac-chuc-nang",
+    "/cac-chuc-nang/:path*",
     "/quan-ly",
     "/quan-ly/:path*",
     "/het-han-dung-thu",

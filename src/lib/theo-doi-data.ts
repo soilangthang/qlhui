@@ -77,8 +77,7 @@ export async function loadTheoDoiData(userId: string): Promise<TheoDoiLinePayloa
       ngayMo: true,
       legs: { select: { stt: true, memberName: true, memberPhone: true, note: true } },
       openings: {
-        orderBy: { kyThu: "desc" },
-        take: 1,
+        orderBy: { kyThu: "asc" },
         select: {
           id: true,
           kyThu: true,
@@ -97,7 +96,9 @@ export async function loadTheoDoiData(userId: string): Promise<TheoDoiLinePayloa
     },
   });
 
-  const openingIds = lines.map((l) => l.openings[0]?.id).filter((id): id is string => Boolean(id));
+  const openingIds = lines
+    .map((l) => (l.openings.length > 0 ? l.openings[l.openings.length - 1]?.id : undefined))
+    .filter((id): id is string => Boolean(id));
   const marks = await loadMarksForOpenings(openingIds);
 
   const markMap = new Map<string, boolean>();
@@ -106,7 +107,8 @@ export async function loadTheoDoiData(userId: string): Promise<TheoDoiLinePayloa
   }
 
   return lines.map((line) => {
-    const latest = line.openings[0] ?? null;
+    const openingsAsc = line.openings ?? [];
+    const latest = openingsAsc.length > 0 ? openingsAsc[openingsAsc.length - 1]! : null;
     const groupMap = new Map<
       string,
       { memberKey: string; memberName: string; memberPhone: string; slotCount: number; legStts: number[] }
@@ -161,7 +163,19 @@ export async function loadTheoDoiData(userId: string): Promise<TheoDoiLinePayloa
       latestWinnerLegStt: latest?.winnerLegStt ?? null,
       latestWinnerSlots: latest?.winnerSlots ?? 1,
       participants,
-      openings: [],
+      openings: openingsAsc.map((o) => ({
+        kyThu: o.kyThu,
+        ngayKhui: o.ngayKhui.toISOString(),
+        status: o.status === "DA_GIAO_TIEN" ? "DA_GIAO_TIEN" : "CHO_GIAO_TIEN",
+        contributionPerSlot: o.contributionPerSlot,
+        grossPayout: o.grossPayout,
+        finalPayout: o.finalPayout,
+        winnerName: o.winnerName,
+        winnerPhone: o.winnerPhone,
+        winnerLegStt: o.winnerLegStt,
+        winnerSlots: o.winnerSlots,
+        bidAmount: o.bidAmount,
+      })),
     };
 
     const groups = Array.from(groupMap.values()).map((g) => {
