@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { z } from "zod";
 
 import { requireChuHuiUserForApi } from "@/lib/chu-hui-scope";
@@ -65,6 +66,8 @@ export async function PUT(
       },
     });
 
+    revalidateTag("thu-tien-panel-data", "max");
+    revalidateTag("theo-doi-data", "max");
     return NextResponse.json({ ok: true, member: updated });
   } catch (error) {
     console.error("PUT /api/hui-vien/[id] error:", error);
@@ -89,6 +92,8 @@ export async function DELETE(
     if (del.count === 0) {
       return NextResponse.json({ message: "Không tìm thấy hụi viên" }, { status: 404 });
     }
+    revalidateTag("thu-tien-panel-data", "max");
+    revalidateTag("theo-doi-data", "max");
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("DELETE /api/hui-vien/[id] error:", error);

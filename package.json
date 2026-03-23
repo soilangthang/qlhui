@@ -9,7 +9,8 @@
     "postinstall": "prisma generate",
     "lint": "eslint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "bench:tabs": "node scripts/benchmark-tab-switch.mjs"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.5.0",

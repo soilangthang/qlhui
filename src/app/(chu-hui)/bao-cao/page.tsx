@@ -8,7 +8,8 @@ export const metadata = {
 
 export default async function BaoCaoPage() {
   const userId = await assertChuHuiUserId();
-  const { members, rows } = await loadThuTienChiTietPanelData(userId);
+  // Báo cáo không cần header phiếu/ảnh QR/logo -> bỏ query cài đặt để giảm thời gian tab switch.
+  const { members, rows } = await loadThuTienChiTietPanelData(userId, { includeReceiptSetting: false });
 
   return <BaoCaoPanel members={members} rows={rows} />;
 }

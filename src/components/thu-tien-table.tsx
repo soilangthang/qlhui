@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 type ThuTienRow = {
@@ -27,7 +26,6 @@ function formatMoneyVN(value: number) {
 }
 
 export default function ThuTienTable({ initialRows }: { initialRows: ThuTienRow[] }) {
-  const router = useRouter();
   const [rows, setRows] = useState(initialRows);
   const [searchQuery, setSearchQuery] = useState("");
   const [loadingId, setLoadingId] = useState<string | null>(null);
@@ -65,7 +63,6 @@ export default function ThuTienTable({ initialRows }: { initialRows: ThuTienRow[
       setRows((prev) =>
         prev.map((row) => (row.id === openingId ? { ...row, status: "DA_GIAO_TIEN" } : row)),
       );
-      router.refresh();
     } catch {
       setError("Không thể kết nối máy chủ");
     } finally {
@@ -86,20 +83,20 @@ export default function ThuTienTable({ initialRows }: { initialRows: ThuTienRow[
         />
       </div>
       {error ? <p className="mb-3 text-sm text-rose-600">{error}</p> : null}
-      <div className="overflow-hidden rounded-xl border border-slate-300">
-        <table className="min-w-full table-fixed text-sm">
+      <div className="overflow-x-auto rounded-xl border border-slate-300 print:overflow-visible">
+        <table className="w-max min-w-[640px] table-fixed text-xs sm:min-w-full sm:text-sm">
           <thead className="bg-slate-50 text-slate-700">
             <tr className="border-b border-slate-300">
-              <th className="border-r border-slate-300 px-3 py-3 text-center">Dây hụi</th>
-              <th className="border-r border-slate-300 px-3 py-3 text-center">Kỳ</th>
-              <th className="border-r border-slate-300 px-3 py-3 text-center">Hụi viên</th>
-              <th className="border-r border-slate-300 px-3 py-3 text-center">Ngày hốt</th>
-              <th className="border-r border-slate-300 px-3 py-3 text-center">Số tiền cần thu</th>
-              <th className="border-r border-slate-300 px-3 py-3 text-center">Trạng thái</th>
-              <th className="px-3 py-3 text-center">Hành động</th>
+              <th className="border-r border-slate-300 px-2 py-3 text-center sm:px-3">Dây hụi</th>
+              <th className="border-r border-slate-300 px-2 py-3 text-center sm:px-3">Kỳ</th>
+              <th className="border-r border-slate-300 px-2 py-3 text-center sm:px-3">Hụi viên</th>
+              <th className="border-r border-slate-300 px-2 py-3 text-center sm:px-3">Ngày hốt</th>
+              <th className="border-r border-slate-300 px-2 py-3 text-center sm:px-3">Số tiền cần thu</th>
+              <th className="border-r border-slate-300 px-2 py-3 text-center sm:px-3">Trạng thái</th>
+              <th className="px-2 py-3 text-center sm:px-3">Hành động</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-300 bg-white text-center text-[15px] font-medium text-slate-700">
+          <tbody className="divide-y divide-slate-300 bg-white text-center text-[13px] font-medium text-slate-700 sm:text-[15px]">
             {rows.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-4 py-6 text-slate-500">
@@ -115,9 +112,9 @@ export default function ThuTienTable({ initialRows }: { initialRows: ThuTienRow[
             ) : (
               visibleRows.map((item) => (
                 <tr key={item.id}>
-                  <td className="border-r border-slate-300 px-3 py-3">{item.huiLineName}</td>
-                  <td className="border-r border-slate-300 px-3 py-3">Kỳ {item.kyThu}</td>
-                  <td className="border-r border-slate-300 px-3 py-3">
+                  <td className="border-r border-slate-300 px-2 py-3 sm:px-3">{item.huiLineName}</td>
+                  <td className="border-r border-slate-300 px-2 py-3 text-center sm:px-3">Kỳ {item.kyThu}</td>
+                  <td className="border-r border-slate-300 px-2 py-3 sm:px-3">
                     <Link
                       href={`/thu-tien/${item.id}/chi-tiet`}
                       className="inline-flex rounded-lg border border-blue-300 px-3 py-1.5 text-xs font-semibold text-blue-700"
@@ -125,14 +122,14 @@ export default function ThuTienTable({ initialRows }: { initialRows: ThuTienRow[
                       Chi tiết
                     </Link>
                   </td>
-                  <td className="border-r border-slate-300 px-3 py-3">{formatDateDisplay(item.ngayKhui)}</td>
-                  <td className="border-r border-slate-300 px-3 py-3 text-lg font-semibold tabular-nums text-emerald-700">
+                  <td className="border-r border-slate-300 px-2 py-3 sm:px-3">{formatDateDisplay(item.ngayKhui)}</td>
+                  <td className="border-r border-slate-300 px-2 py-3 sm:px-3 text-base sm:text-lg font-semibold tabular-nums text-emerald-700">
                     {formatMoneyVN(item.grossPayout)}
                   </td>
-                  <td className="border-r border-slate-300 px-3 py-3">
+                  <td className="border-r border-slate-300 px-2 py-3 sm:px-3">
                     {item.status === "DA_GIAO_TIEN" ? "Hoàn thành" : "Chờ giao tiền"}
                   </td>
-                  <td className="px-3 py-3">
+                  <td className="px-2 py-3 sm:px-3">
                     <button
                       type="button"
                       onClick={() => void confirmPaid(item.id)}

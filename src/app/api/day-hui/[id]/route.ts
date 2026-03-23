@@ -1,8 +1,10 @@
 import { HuiCycle } from "@prisma/client";
+import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { requireChuHuiUserForApi } from "@/lib/chu-hui-scope";
+import { clearDayHuiLinesCache } from "@/lib/day-hui-cache";
 import { prisma } from "@/lib/prisma";
 
 const updateSchema = z.object({
@@ -168,6 +170,10 @@ export async function PUT(
       },
     });
 
+    clearDayHuiLinesCache(gate.userId);
+    revalidateTag("thu-tien-panel-data", "max");
+    revalidateTag("theo-doi-data", "max");
+    revalidateTag("dashboard-data", "max");
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("PUT /api/day-hui/[id] error:", error);
@@ -200,6 +206,10 @@ export async function DELETE(
       return NextResponse.json({ message: "Dây hụi đã khui, không thể xóa." }, { status: 400 });
     }
     await prisma.huiLine.delete({ where: { id } });
+    clearDayHuiLinesCache(gate.userId);
+    revalidateTag("thu-tien-panel-data", "max");
+    revalidateTag("theo-doi-data", "max");
+    revalidateTag("dashboard-data", "max");
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("DELETE /api/day-hui/[id] error:", error);

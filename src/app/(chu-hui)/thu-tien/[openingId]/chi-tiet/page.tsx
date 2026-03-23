@@ -46,6 +46,19 @@ export default async function ThuTienChiTietPage({
   if (!opening) notFound();
 
   const { members, rows, receiptSettingForClient } = await loadThuTienChiTietPanelData(userId);
+  const receiptSetting = receiptSettingForClient ?? {
+    huiName: "Hụi mini",
+    ownerName: "Chủ hụi",
+    address: "",
+    phone: "",
+    bankAccount: "",
+    bankName: "",
+    accountName: "",
+    qrImageUrl: "",
+    qrImageDataUrl: "",
+    logoImageDataUrl: "",
+    phieuGhiChu: "",
+  };
 
   const defaultMember =
     members.find((item) => openingWinnerMatchesMember(opening.winnerName, opening.winnerPhone, item)) ??
@@ -88,7 +101,7 @@ export default async function ThuTienChiTietPage({
       members={members}
       rows={rows}
       defaultMemberId={defaultMember?.id ?? ""}
-      receiptSetting={receiptSettingForClient}
+      receiptSetting={receiptSetting}
       deliverySlip={deliverySlip}
     />
   );

@@ -5,6 +5,8 @@ import {
   type HuiMemberRef,
 } from "@/lib/hui-member-line-metrics";
 import { memberTrackingKeyFromLeg, parseMemberIdFromNote } from "@/lib/member-tracking-key";
+import { unstable_cache } from "next/cache";
+import { logPerf, perfNowMs } from "@/lib/perf-log";
 import { prisma } from "@/lib/prisma";
 
 type PaidMarkRow = { huiOpeningId: string; memberKey: string; paidFull: boolean };
@@ -63,7 +65,9 @@ function memberRefFromGroup(g: {
   return { id: g.memberKey, name, phone };
 }
 
-export async function loadTheoDoiData(userId: string): Promise<TheoDoiLinePayload[]> {
+const loadTheoDoiDataCached = unstable_cache(
+  async (userId: string): Promise<TheoDoiLinePayload[]> => {
+  const t0 = perfNowMs();
   const lines = await prisma.huiLine.findMany({
     where: { userId },
     orderBy: { createdAt: "asc" },
@@ -106,7 +110,7 @@ export async function loadTheoDoiData(userId: string): Promise<TheoDoiLinePayloa
     markMap.set(`${m.huiOpeningId}\t${m.memberKey}`, m.paidFull);
   }
 
-  return lines.map((line) => {
+  const out = lines.map((line) => {
     const openingsAsc = line.openings ?? [];
     const latest = openingsAsc.length > 0 ? openingsAsc[openingsAsc.length - 1]! : null;
     const groupMap = new Map<
@@ -217,4 +221,14 @@ export async function loadTheoDoiData(userId: string): Promise<TheoDoiLinePayloa
       paidByMemberKey,
     };
   });
+  logPerf("loadTheoDoiData", t0, `userId=${userId} lines=${out.length}`);
+  return out;
+  },
+  ["theo-doi-data-v1"],
+  // TTL ngắn để tăng tốc tab switch, dữ liệu vẫn gần realtime.
+  { revalidate: 10, tags: ["theo-doi-data"] },
+);
+
+export async function loadTheoDoiData(userId: string): Promise<TheoDoiLinePayload[]> {
+  return loadTheoDoiDataCached(userId);
 }

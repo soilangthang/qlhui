@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import type { TheoDoiLinePayload } from "@/lib/theo-doi-data";
@@ -84,7 +83,6 @@ function GreenCheckIcon() {
 }
 
 export default function TheoDoiPanel({ initialLines }: { initialLines: TheoDoiLinePayload[] }) {
-  const router = useRouter();
   const [lines, setLines] = useState(initialLines);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedLineId, setSelectedLineId] = useState<string | null>(() => initialLines[0]?.lineId ?? null);
@@ -211,7 +209,6 @@ export default function TheoDoiPanel({ initialLines }: { initialLines: TheoDoiLi
                 },
           ),
         );
-        router.refresh();
       }
     } catch {
       setError("Không thể kết nối máy chủ");
@@ -410,7 +407,7 @@ export default function TheoDoiPanel({ initialLines }: { initialLines: TheoDoiLi
             </ul>
           </aside>
 
-          <div className="min-w-0 w-full flex-1 overflow-hidden rounded-xl border border-slate-300 bg-white lg:rounded-none lg:border-0">
+          <div className="min-w-0 w-full flex-1 overflow-visible rounded-xl border border-slate-300 bg-white lg:overflow-hidden lg:rounded-none lg:border-0">
             {activeLine ? (
               <article className="flex h-full min-h-[320px] min-w-0 flex-col">
                 <div className="flex flex-col gap-1 border-b border-slate-200 bg-slate-50/90 px-3 py-3 sm:px-4 sm:flex-row sm:items-center sm:justify-between">
@@ -453,25 +450,25 @@ export default function TheoDoiPanel({ initialLines }: { initialLines: TheoDoiLi
                   )}
                 </div>
 
-                <div className="min-w-0 flex-1 overflow-x-auto overscroll-x-contain">
-                  <table className="w-full min-w-[640px] table-fixed text-center text-sm sm:min-w-[680px]">
+                <div className="min-w-0 flex-1 w-full overflow-x-auto overscroll-x-contain">
+                  <table className="w-max min-w-[560px] table-fixed text-center text-xs sm:min-w-[680px] sm:text-sm">
                     <thead className="bg-white text-slate-700">
                       <tr className="border-b border-slate-300">
-                        <th className="w-14 border-r border-slate-300 px-2 py-2 font-bold">STT</th>
-                        <th className="border-r border-slate-300 px-2 py-2 font-bold">Họ tên</th>
-                        <th className="w-36 border-r border-slate-300 px-2 py-2 font-bold">SĐT</th>
-                        <th className="w-24 border-r border-slate-300 px-2 py-2 font-bold">Số chân</th>
-                        <th className="border-r border-slate-300 px-2 py-2 font-bold">Chân (STT)</th>
+                        <th className="w-12 border-r border-slate-300 px-1.5 py-2 font-bold">STT</th>
+                        <th className="border-r border-slate-300 px-1.5 py-2 font-bold">Họ tên</th>
+                        <th className="w-28 border-r border-slate-300 px-1.5 py-2 font-bold">SĐT</th>
+                        <th className="w-20 border-r border-slate-300 px-1.5 py-2 font-bold">Số chân</th>
+                        <th className="border-r border-slate-300 px-1.5 py-2 font-bold">Chân (STT)</th>
                         <th
-                          className="w-36 border-r border-slate-300 px-2 py-2 font-bold"
+                          className="w-28 border-r border-slate-300 px-1.5 py-2 font-bold"
                           title="Tiền đóng kỳ hiện tại: chân sống × mức góp kỳ + chân chết × mức dây (người hốt kỳ này: trừ ngang)"
                         >
                           Số tiền
                         </th>
-                        <th className="w-40 px-2 py-2 font-bold">Đã đóng đủ</th>
+                        <th className="w-28 px-1.5 py-2 font-bold">Đã đóng đủ</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-300 text-[15px] font-medium text-slate-700">
+                    <tbody className="divide-y divide-slate-300 text-[13px] font-medium text-slate-700 sm:text-[15px]">
                       {activeLine.groups.length === 0 ? (
                         <tr>
                           <td colSpan={7} className="px-4 py-5 text-slate-500">
@@ -485,14 +482,14 @@ export default function TheoDoiPanel({ initialLines }: { initialLines: TheoDoiLi
                           const busy = busyKey === `${openingId}:${g.memberKey}`;
                           return (
                             <tr key={g.memberKey} className="bg-white hover:bg-slate-50/80">
-                              <td className="border-r border-slate-300 px-2 py-2 tabular-nums">{idx + 1}</td>
-                              <td className="border-r border-slate-300 px-2 py-2 text-left">{g.memberName}</td>
-                              <td className="border-r border-slate-300 px-2 py-2 tabular-nums">{g.memberPhone}</td>
-                              <td className="border-r border-slate-300 px-2 py-2 tabular-nums">{g.slotCount}</td>
-                              <td className="border-r border-slate-300 px-2 py-2 text-sm tabular-nums">
+                              <td className="border-r border-slate-300 px-1.5 py-2 tabular-nums">{idx + 1}</td>
+                              <td className="border-r border-slate-300 px-1.5 py-2 text-left">{g.memberName}</td>
+                              <td className="border-r border-slate-300 px-1.5 py-2 tabular-nums">{g.memberPhone}</td>
+                              <td className="border-r border-slate-300 px-1.5 py-2 tabular-nums">{g.slotCount}</td>
+                              <td className="border-r border-slate-300 px-1.5 py-2 text-sm tabular-nums sm:text-sm">
                                 {g.legStts.join(", ")}
                               </td>
-                              <td className="border-r border-slate-300 px-2 py-2 text-sm font-semibold tabular-nums">
+                              <td className="border-r border-slate-300 px-1.5 py-2 text-sm font-semibold tabular-nums sm:text-sm">
                                 {g.tienDongKyNay == null ? (
                                   <span className="font-normal text-slate-500">—</span>
                                 ) : g.laNguoiHotKyNay ? (
@@ -506,7 +503,7 @@ export default function TheoDoiPanel({ initialLines }: { initialLines: TheoDoiLi
                                   <span className="text-emerald-800">{formatMoneyVN(g.tienDongKyNay)}</span>
                                 )}
                               </td>
-                              <td className="px-2 py-2">
+                              <td className="px-1.5 py-2">
                                 {g.laNguoiHotKyNay ? (
                                   <span
                                     className={`text-xs font-semibold ${

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { getClientCache, setClientCache } from "@/lib/client-query-cache";
 
 type HuiVien = {
   id: string;
@@ -54,6 +55,11 @@ export default function HuiVienPanel() {
 
   useEffect(() => {
     async function loadMembers() {
+      const cached = getClientCache<HuiVien[]>("hui-vien:list");
+      if (cached) {
+        setMembers(cached);
+        return;
+      }
       setLoading(true);
       setError("");
       try {
@@ -63,14 +69,16 @@ export default function HuiVienPanel() {
           setError(data.message ?? "Không tải được danh sách hụi viên");
           return;
         }
-        setMembers(
-          (data.members ?? []).map((m: { id: string; name: string; phone: string; note: string | null }) => ({
+        const nextMembers = (data.members ?? []).map(
+          (m: { id: string; name: string; phone: string; note: string | null }) => ({
             id: m.id,
             name: m.name,
             phone: m.phone,
             note: m.note ?? "-",
-          })),
+          }),
         );
+        setMembers(nextMembers);
+        setClientCache("hui-vien:list", nextMembers, 20_000);
       } catch {
         setError("Không thể kết nối máy chủ");
       } finally {
@@ -80,6 +88,11 @@ export default function HuiVienPanel() {
 
     void loadMembers();
   }, []);
+
+  useEffect(() => {
+    // Giữ cache đồng bộ sau thêm/sửa/xóa để giảm refetch khi đổi tab.
+    setClientCache("hui-vien:list", members, 20_000);
+  }, [members]);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();

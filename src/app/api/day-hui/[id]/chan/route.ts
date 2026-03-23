@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 
 import { requireChuHuiUserForApi } from "@/lib/chu-hui-scope";
+import { clearDayHuiLinesCache } from "@/lib/day-hui-cache";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(
@@ -43,6 +45,10 @@ export async function GET(
       await prisma.huiLeg.createMany({
         data: missing.map((stt) => ({ huiLineId: id, stt })),
       });
+      clearDayHuiLinesCache(gate.userId);
+      revalidateTag("thu-tien-panel-data", "max");
+      revalidateTag("theo-doi-data", "max");
+      revalidateTag("dashboard-data", "max");
     }
 
     const legs = await prisma.huiLeg.findMany({

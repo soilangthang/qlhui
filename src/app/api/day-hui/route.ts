@@ -1,8 +1,11 @@
 import { HuiCycle, HuiLineStatus } from "@prisma/client";
+import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { requireChuHuiUserForApi } from "@/lib/chu-hui-scope";
+import { clearDayHuiLinesCache, getDayHuiLinesCache, setDayHuiLinesCache } from "@/lib/day-hui-cache";
+import { logPerf, perfNowMs } from "@/lib/perf-log";
 import { prisma } from "@/lib/prisma";
 
 const dayHuiSchema = z.object({
@@ -39,9 +42,9 @@ function toSerializableLine(line: {
   ngayMo: Date;
   chuKy: HuiCycle;
   status: HuiLineStatus;
-  openings?: Array<{ id: string }>;
   _count?: { openings: number };
 }) {
+  const openingCount = line._count?.openings ?? 0;
   return {
     id: line.id,
     name: line.name,
@@ -53,15 +56,23 @@ function toSerializableLine(line: {
     chuKy: line.chuKy,
     ngayMo: line.ngayMo.toISOString(),
     status: line.status,
-    hasOpened: Boolean(line.openings?.length),
-    openingCount: line._count?.openings ?? 0,
+    hasOpened: openingCount > 0,
+    openingCount,
   };
 }
 
 export async function GET() {
+  const t0 = perfNowMs();
   try {
     const gate = await requireChuHuiUserForApi();
     if (!gate.ok) return gate.response;
+
+    // Cache ngắn theo user để giảm truy vấn lặp khi đổi tab liên tục.
+    const cached = getDayHuiLinesCache(gate.userId);
+    if (cached) {
+      logPerf("api:day-hui:list", t0, `userId=${gate.userId} cache=hit lines=${cached.length}`);
+      return NextResponse.json({ ok: true, lines: cached });
+    }
 
     const lines = await prisma.huiLine.findMany({
       where: { userId: gate.userId },
@@ -75,17 +86,16 @@ export async function GET() {
         chuKy: true,
         ngayMo: true,
         status: true,
-        openings: {
-          take: 1,
-          select: { id: true },
-        },
         _count: {
           select: { openings: true },
         },
       },
     });
 
-    return NextResponse.json({ ok: true, lines: lines.map(toSerializableLine) });
+    const serialized = lines.map(toSerializableLine);
+    setDayHuiLinesCache(gate.userId, serialized);
+    logPerf("api:day-hui:list", t0, `userId=${gate.userId} cache=miss lines=${serialized.length}`);
+    return NextResponse.json({ ok: true, lines: serialized });
   } catch (error) {
     console.error("GET /api/day-hui error:", error);
     const detail =
@@ -97,6 +107,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const t0 = perfNowMs();
   try {
     const gate = await requireChuHuiUserForApi();
     if (!gate.ok) return gate.response;
@@ -150,16 +161,17 @@ export async function POST(request: Request) {
         chuKy: true,
         ngayMo: true,
         status: true,
-        openings: {
-          take: 1,
-          select: { id: true },
-        },
         _count: {
           select: { openings: true },
         },
       },
     });
 
+    clearDayHuiLinesCache(gate.userId);
+    revalidateTag("thu-tien-panel-data", "max");
+    revalidateTag("theo-doi-data", "max");
+    revalidateTag("dashboard-data", "max");
+    logPerf("api:day-hui:create", t0, `userId=${gate.userId} lineId=${created.id}`);
     return NextResponse.json({ ok: true, line: toSerializableLine(created) });
   } catch (error) {
     console.error("POST /api/day-hui error:", error);

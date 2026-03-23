@@ -1,6 +1,7 @@
 import type { HuiMemberRef } from "@/lib/hui-member-line-metrics";
 import { openingWinnerMatchesMember, participantMatchesMember } from "@/lib/hui-member-line-metrics";
 import { memberTrackingKeyFromLeg, parseMemberIdFromNote } from "@/lib/member-tracking-key";
+import { logPerf, perfNowMs } from "@/lib/perf-log";
 import { prisma } from "@/lib/prisma";
 
 export type TheoDoiLeg = {
@@ -83,6 +84,7 @@ export async function getWinnerMemberKeyForOpeningId(openingId: string): Promise
 
 /** Khi chủ xác nhận đã giao tiền ở Thu tiền: tích hết đánh dấu đóng đủ cho các hụi viên không phải người hốt. */
 export async function syncPaidMarksWhenOpeningDelivered(openingId: string): Promise<void> {
+  const t0 = perfNowMs();
   const opening = await prisma.huiOpening.findUnique({
     where: { id: openingId },
     select: {
@@ -107,16 +109,27 @@ export async function syncPaidMarksWhenOpeningDelivered(openingId: string): Prom
     opening.winnerPhone,
   );
   const keys = nonWinnerMemberKeys(legs, wKey);
-
-  for (const memberKey of keys) {
-    await prisma.huiOpeningMemberPaidMark.upsert({
-      where: {
-        huiOpeningId_memberKey: { huiOpeningId: openingId, memberKey },
-      },
-      create: { huiOpeningId: openingId, memberKey, paidFull: true },
-      update: { paidFull: true },
-    });
+  if (keys.length === 0) {
+    logPerf("syncPaidMarksWhenOpeningDelivered", t0, `openingId=${openingId} keys=0`);
+    return;
   }
+
+  // Batch write: tránh N+1 upsert từng memberKey.
+  await prisma.$transaction([
+    prisma.huiOpeningMemberPaidMark.createMany({
+      data: keys.map((memberKey) => ({
+        huiOpeningId: openingId,
+        memberKey,
+        paidFull: true,
+      })),
+      skipDuplicates: true,
+    }),
+    prisma.huiOpeningMemberPaidMark.updateMany({
+      where: { huiOpeningId: openingId, memberKey: { in: keys } },
+      data: { paidFull: true },
+    }),
+  ]);
+  logPerf("syncPaidMarksWhenOpeningDelivered", t0, `openingId=${openingId} keys=${keys.length}`);
 }
 
 /**

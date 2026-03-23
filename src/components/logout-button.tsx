@@ -12,7 +12,6 @@ export default function LogoutButton({ className = "" }: { className?: string })
     try {
       await fetch("/api/auth/logout", { method: "POST" });
       router.push("/login");
-      router.refresh();
     } finally {
       setLoading(false);
     }

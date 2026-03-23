@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { z } from "zod";
 
 import { requireChuHuiUserForApi } from "@/lib/chu-hui-scope";
+import { clearDayHuiLinesCache } from "@/lib/day-hui-cache";
 import { prisma } from "@/lib/prisma";
 
 const assignSchema = z.object({
@@ -88,6 +90,10 @@ export async function POST(
       ),
     );
 
+    clearDayHuiLinesCache(gate.userId);
+    revalidateTag("thu-tien-panel-data", "max");
+    revalidateTag("theo-doi-data", "max");
+    revalidateTag("dashboard-data", "max");
     return NextResponse.json({ ok: true, assigned: selected.length });
   } catch (error) {
     console.error("POST /api/day-hui/[id]/chan/assign error:", error);

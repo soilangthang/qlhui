@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getClientCache, setClientCache } from "@/lib/client-query-cache";
 
 type OwnerReceiptSetting = {
   huiName: string;
@@ -42,6 +43,12 @@ export default function CaiDatPanel() {
 
   useEffect(() => {
     async function loadSetting() {
+      const cached = getClientCache<OwnerReceiptSetting>("cai-dat:setting");
+      if (cached) {
+        setForm(cached);
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       setError("");
       try {
@@ -51,7 +58,7 @@ export default function CaiDatPanel() {
           setError(data.message ?? "Không tải được cài đặt");
           return;
         }
-        setForm({
+        const nextForm = {
           huiName: data.setting?.huiName ?? "",
           ownerName: data.setting?.ownerName ?? "",
           address: data.setting?.address ?? "",
@@ -63,7 +70,9 @@ export default function CaiDatPanel() {
           qrImageDataUrl: data.setting?.qrImageDataUrl ?? "",
           logoImageDataUrl: data.setting?.logoImageDataUrl ?? "",
           phieuGhiChu: data.setting?.phieuGhiChu ?? "",
-        });
+        };
+        setForm(nextForm);
+        setClientCache("cai-dat:setting", nextForm, 20_000);
       } catch {
         setError("Không thể kết nối máy chủ");
       } finally {
@@ -94,6 +103,7 @@ export default function CaiDatPanel() {
         setError(data.message ?? "Không thể lưu cài đặt");
         return;
       }
+      setClientCache("cai-dat:setting", { ...form }, 20_000);
       setSuccess("Đã lưu cài đặt phiếu thu.");
     } catch {
       setError("Không thể kết nối máy chủ");
@@ -123,7 +133,11 @@ export default function CaiDatPanel() {
         setError(data.message ?? "Không thể upload ảnh QR");
         return;
       }
-      setForm((prev) => ({ ...prev, qrImageDataUrl: data.qrImageDataUrl ?? "" }));
+      setForm((prev) => {
+        const next = { ...prev, qrImageDataUrl: data.qrImageDataUrl ?? "" };
+        setClientCache("cai-dat:setting", next, 20_000);
+        return next;
+      });
       setQrFile(null);
       setSuccess("Đã upload ảnh QR vào database.");
     } catch {
@@ -155,7 +169,11 @@ export default function CaiDatPanel() {
         setError(data.message ?? "Không thể upload logo");
         return;
       }
-      setForm((prev) => ({ ...prev, logoImageDataUrl: data.logoImageDataUrl ?? "" }));
+      setForm((prev) => {
+        const next = { ...prev, logoImageDataUrl: data.logoImageDataUrl ?? "" };
+        setClientCache("cai-dat:setting", next, 20_000);
+        return next;
+      });
       setLogoFile(null);
       setSuccess("Đã upload logo — hiển thị trên phiếu tạm tính và phiếu giao.");
     } catch {
@@ -176,7 +194,11 @@ export default function CaiDatPanel() {
         setError(data.message ?? "Không thể xóa logo");
         return;
       }
-      setForm((prev) => ({ ...prev, logoImageDataUrl: "" }));
+      setForm((prev) => {
+        const next = { ...prev, logoImageDataUrl: "" };
+        setClientCache("cai-dat:setting", next, 20_000);
+        return next;
+      });
       setSuccess("Đã xóa logo — phiếu dùng logo mặc định.");
     } catch {
       setError("Không thể kết nối máy chủ");

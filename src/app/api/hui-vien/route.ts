@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { z } from "zod";
 
 import { requireChuHuiUserForApi } from "@/lib/chu-hui-scope";
@@ -78,6 +79,9 @@ export async function POST(request: Request) {
       },
     });
 
+    // Invalidate server cache dùng chung cho báo cáo/chi tiết/phiếu theo user.
+    revalidateTag("thu-tien-panel-data", "max");
+    revalidateTag("theo-doi-data", "max");
     return NextResponse.json({ ok: true, member: created });
   } catch (error) {
     console.error("POST /api/hui-vien error:", error);

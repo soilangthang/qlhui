@@ -120,7 +120,8 @@ export default function MobileBottomNav({ pathname }: { pathname: string }) {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200 bg-white pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-[0_-4px_20px_rgba(15,23,42,0.06)] lg:hidden print:hidden"
+      className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200 bg-white shadow-[0_-4px_20px_rgba(15,23,42,0.06)] lg:hidden print:hidden"
+      style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}
       aria-label="Điều hướng chính"
     >
       <div className="mx-auto flex min-w-0 max-w-full">

@@ -6,9 +6,11 @@ import {
   chuHuiTrialEndsAt,
   isChuHuiTrialBlocked,
 } from "@/lib/chu-hui-trial";
+import { logPerf, perfNowMs } from "@/lib/perf-log";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
+  const t0 = perfNowMs();
   try {
     const payload = await getAuthPayloadFromCookie();
     if (!payload?.sub) {
@@ -49,6 +51,7 @@ export async function GET() {
             trialDaysRemaining: null as number | null,
           };
 
+    logPerf("api:auth:me", t0, `userId=${user.id}`);
     return NextResponse.json({ ok: true, user, access });
   } catch {
     return NextResponse.json({ message: "Lỗi hệ thống" }, { status: 500 });

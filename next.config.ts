@@ -7,6 +7,8 @@ import type { NextConfig } from "next";
 const PROJECT_ROOT = path.dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
+  /** Dùng distDir riêng để tránh lỗi artifact .next bị hỏng trên Windows. */
+  distDir: ".next-prod",
   /** Tránh bundle Prisma vào .next — nếu không, Turbopack có thể giữ client cũ (thiếu model mới sau generate). */
   serverExternalPackages: ["@prisma/client", "prisma"],
   turbopack: {

@@ -1,8 +1,10 @@
 import { Prisma } from "@prisma/client";
+import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { requireChuHuiUserForApi } from "@/lib/chu-hui-scope";
+import { logPerf, perfNowMs } from "@/lib/perf-log";
 import { prisma } from "@/lib/prisma";
 import {
   getWinnerMemberKeyForOpeningId,
@@ -16,6 +18,7 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
+  const t0 = perfNowMs();
   try {
     const gate = await requireChuHuiUserForApi();
     if (!gate.ok) return gate.response;
@@ -56,6 +59,12 @@ export async function POST(request: Request) {
     });
 
     const sync = await tryCompleteOpeningWhenAllNonWinnersPaid(huiOpeningId);
+    if (sync.completed) {
+      revalidateTag("thu-tien-panel-data", "max");
+      revalidateTag("dashboard-data", "max");
+    }
+    revalidateTag("theo-doi-data", "max");
+    logPerf("api:theo-doi:mark", t0, `openingId=${huiOpeningId} autoCompleted=${sync.completed}`);
 
     return NextResponse.json({
       ok: true,

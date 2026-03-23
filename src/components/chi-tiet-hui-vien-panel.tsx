@@ -94,12 +94,10 @@ export default function ChiTietHuiVienPanel({
   const [shareBusy, setShareBusy] = useState(false);
   const [shareHint, setShareHint] = useState<string | null>(null);
   const [canShareFiles, setCanShareFiles] = useState(false);
-  const phoneLike = useMemo(() => {
-    if (typeof window === "undefined") return false;
-    return isPhoneLikeDevice();
-  }, []);
+  const [phoneLike, setPhoneLike] = useState(false);
 
   useEffect(() => {
+    setPhoneLike(isPhoneLikeDevice());
     setCanShareFiles(canSharePdfFiles());
   }, []);
 

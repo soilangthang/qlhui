@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { z } from "zod";
 
 import { requireChuHuiUserForApi } from "@/lib/chu-hui-scope";
@@ -121,6 +122,7 @@ export async function POST(request: Request) {
         );
       }
 
+      revalidateTag("thu-tien-panel-data", "max");
       return NextResponse.json({
         ok: true,
         logoImageDataUrl: receiptImageBytesToDataUrl(bytes, file.type),
@@ -142,6 +144,7 @@ export async function POST(request: Request) {
       },
     });
 
+    revalidateTag("thu-tien-panel-data", "max");
     return NextResponse.json({
       ok: true,
       qrImageDataUrl: receiptImageBytesToDataUrl(bytes, file.type),
@@ -194,6 +197,7 @@ export async function PUT(request: Request) {
       },
     });
 
+    revalidateTag("thu-tien-panel-data", "max");
     return NextResponse.json({ ok: true, setting: saved });
   } catch (error) {
     console.error("PUT /api/cai-dat error:", error);
@@ -221,6 +225,7 @@ export async function DELETE() {
       // Cột chưa có: bỏ qua
     }
 
+    revalidateTag("thu-tien-panel-data", "max");
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("DELETE /api/cai-dat error:", error);

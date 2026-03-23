@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 
 import { requireChuHuiUserForApi } from "@/lib/chu-hui-scope";
+import { logPerf, perfNowMs } from "@/lib/perf-log";
 import { prisma } from "@/lib/prisma";
 import { syncPaidMarksWhenOpeningDelivered } from "@/lib/theo-doi-opening-sync";
 
@@ -8,6 +10,7 @@ export async function PUT(
   _request: Request,
   { params }: { params: Promise<{ openingId: string }> },
 ) {
+  const t0 = perfNowMs();
   try {
     const gate = await requireChuHuiUserForApi();
     if (!gate.ok) return gate.response;
@@ -27,6 +30,10 @@ export async function PUT(
       select: { id: true, status: true },
     });
     await syncPaidMarksWhenOpeningDelivered(openingId);
+    revalidateTag("thu-tien-panel-data", "max");
+    revalidateTag("theo-doi-data", "max");
+    revalidateTag("dashboard-data", "max");
+    logPerf("api:thu-tien:confirm", t0, `openingId=${openingId}`);
     return NextResponse.json({ ok: true, opening: updated });
   } catch (error) {
     console.error("PUT /api/thu-tien/[openingId] error:", error);

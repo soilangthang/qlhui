@@ -175,12 +175,10 @@ export default function ThuTienChiTietPanel({
   const [shareBusy, setShareBusy] = useState(false);
   const [shareHint, setShareHint] = useState<string | null>(null);
   const [canShareFiles, setCanShareFiles] = useState(false);
-  const phoneLike = useMemo(() => {
-    if (typeof window === "undefined") return false;
-    return isPhoneLikeDevice();
-  }, []);
+  const [phoneLike, setPhoneLike] = useState(false);
 
   useEffect(() => {
+    setPhoneLike(isPhoneLikeDevice());
     setCanShareFiles(canSharePdfFiles());
   }, []);
 
@@ -411,52 +409,52 @@ export default function ThuTienChiTietPanel({
         </p>
       </div>
 
-      <div className="overflow-hidden border-b border-slate-300">
-        <table className="min-w-full table-fixed text-sm">
+      <div className="overflow-x-auto border-b border-slate-300 print:overflow-visible">
+        <table className="min-w-[760px] table-fixed text-xs sm:min-w-full sm:text-sm">
           <thead className="bg-amber-100 text-slate-800">
             <tr className="border-b border-slate-300">
-              <th className="border-r border-slate-300 px-3 py-2 text-center">Số dây</th>
-              <th className="border-r border-slate-300 px-3 py-2 text-center">Số chân</th>
-              <th className="border-r border-slate-300 px-3 py-2 text-center">Chết</th>
-              <th className="border-r border-slate-300 px-3 py-2 text-center">Sống</th>
+              <th className="border-r border-slate-300 px-2 py-2 text-center sm:px-3">Số dây</th>
+              <th className="border-r border-slate-300 px-2 py-2 text-center sm:px-3">Số chân</th>
+              <th className="border-r border-slate-300 px-2 py-2 text-center sm:px-3">Chết</th>
+              <th className="border-r border-slate-300 px-2 py-2 text-center sm:px-3">Sống</th>
               <th
-                className="border-r border-slate-300 px-3 py-2 text-center"
+                className="border-r border-slate-300 px-2 py-2 text-center sm:px-3"
                 title="Tổng tiền đóng kỳ đang tính: chân sống × mức góp kỳ + chân chết × mức dây. Dây đã hốt kỳ này trừ ngang với chủ nên không cộng."
               >
                 Hụi sống (đã đóng)
               </th>
               <th
-                className="border-r border-slate-300 px-3 py-2 text-center"
+                className="border-r border-slate-300 px-2 py-2 text-center sm:px-3"
                 title="Tiền người hốt thực nhận = gộp góp − tiền cò chủ (theo dây)"
               >
                 Tiền hốt (đã trừ cò)
               </th>
               <th
-                className="border-r border-slate-300 px-3 py-2 text-center"
+                className="border-r border-slate-300 px-2 py-2 text-center sm:px-3"
                 title="Ước lượng phần chân chết còn phải đóng tới mãn: chân chết × mức dây × số kỳ còn lại (chỉ hụi viên chưa hốt kỳ đang tính)."
               >
                 Hụi Chết ( cần đóng )
               </th>
-              <th className="border-r border-slate-300 px-3 py-2 text-center" title="Đã đóng − đã hốt (kỳ hiện tại)">
+              <th className="border-r border-slate-300 px-2 py-2 text-center sm:px-3" title="Đã đóng − đã hốt (kỳ hiện tại)">
                 Cân bằng
               </th>
-              <th className="px-3 py-2 text-center" title="Đã hốt − đã đóng">
+              <th className="px-2 py-2 text-center sm:px-3" title="Đã hốt − đã đóng">
                 Lợi nhuận ròng
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white text-center text-[15px] font-semibold text-slate-700 print:text-[10px]">
+          <tbody className="bg-white text-center text-xs font-semibold text-slate-700 sm:text-[15px] print:text-[10px]">
             <tr>
-              <td className="border-r border-slate-300 px-3 py-2">{receiptRows.length}</td>
-              <td className="border-r border-slate-300 px-3 py-2">{summary.totalSlots}</td>
-              <td className="border-r border-slate-300 px-3 py-2 text-rose-700">{summary.deadSlots}</td>
-              <td className="border-r border-slate-300 px-3 py-2 text-emerald-700">{summary.liveSlots}</td>
-              <td className="border-r border-slate-300 px-3 py-2">{formatMoneyVN(summary.totalPayIn)}</td>
-              <td className="border-r border-slate-300 px-3 py-2">{formatMoneyVN(summary.totalPayOut)}</td>
-              <td className="border-r border-slate-300 px-3 py-2">{formatMoneyVN(summary.totalFutureDeadPay)}</td>
-              <td className="border-r border-slate-300 px-3 py-2">{formatMoneyVN(summary.net)}</td>
+              <td className="border-r border-slate-300 px-2 py-2 sm:px-3">{receiptRows.length}</td>
+              <td className="border-r border-slate-300 px-2 py-2 sm:px-3">{summary.totalSlots}</td>
+              <td className="border-r border-slate-300 px-2 py-2 text-rose-700 sm:px-3">{summary.deadSlots}</td>
+              <td className="border-r border-slate-300 px-2 py-2 text-emerald-700 sm:px-3">{summary.liveSlots}</td>
+              <td className="border-r border-slate-300 px-2 py-2 sm:px-3">{formatMoneyVN(summary.totalPayIn)}</td>
+              <td className="border-r border-slate-300 px-2 py-2 sm:px-3">{formatMoneyVN(summary.totalPayOut)}</td>
+              <td className="border-r border-slate-300 px-2 py-2 sm:px-3">{formatMoneyVN(summary.totalFutureDeadPay)}</td>
+              <td className="border-r border-slate-300 px-2 py-2 sm:px-3">{formatMoneyVN(summary.net)}</td>
               <td
-                className={`px-3 py-2 font-semibold ${profitToneClass(summary.totalPayOut - summary.totalPayIn)}`}
+                className={`px-2 py-2 font-semibold sm:px-3 ${profitToneClass(summary.totalPayOut - summary.totalPayIn)}`}
               >
                 {formatMoneyVN(summary.totalPayOut - summary.totalPayIn)}
               </td>
@@ -465,8 +463,8 @@ export default function ThuTienChiTietPanel({
         </table>
       </div>
 
-      <div className="overflow-hidden border-b border-slate-300 print:[&_th]:px-0.5 print:[&_th]:py-0.5 print:[&_td]:px-0.5 print:[&_td]:py-0.5 print:[&_tbody]:text-[9px] print:[&_thead]:text-[8px]">
-        <table className="min-w-full table-fixed text-sm print:text-[9px]">
+      <div className="overflow-x-auto border-b border-slate-300 print:overflow-visible print:[&_th]:px-0.5 print:[&_th]:py-0.5 print:[&_td]:px-0.5 print:[&_td]:py-0.5 print:[&_tbody]:text-[9px] print:[&_thead]:text-[8px]">
+        <table className="min-w-[1220px] table-fixed text-xs sm:min-w-full sm:text-sm print:text-[9px]">
           <thead className="bg-amber-100 text-slate-700">
             <tr className="border-b border-slate-300">
               <th className="w-12 border-r border-slate-300 px-2 py-3 text-center print:w-6">#</th>

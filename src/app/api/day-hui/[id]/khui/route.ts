@@ -1,10 +1,12 @@
 import { HuiLineStatus } from "@prisma/client";
+import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { calculateHuiPayout } from "@/lib/calculate-hui-payout";
 import { assertKhuiDateIsToday } from "@/lib/local-calendar";
 import { requireChuHuiUserForApi } from "@/lib/chu-hui-scope";
+import { clearDayHuiLinesCache } from "@/lib/day-hui-cache";
 import { prisma } from "@/lib/prisma";
 
 const khuiSchema = z.object({
@@ -126,6 +128,10 @@ export async function POST(
       }),
     ]);
 
+    clearDayHuiLinesCache(gate.userId);
+    revalidateTag("thu-tien-panel-data", "max");
+    revalidateTag("theo-doi-data", "max");
+    revalidateTag("dashboard-data", "max");
     return NextResponse.json({
       ok: true,
       kyThu: createdOpening.kyThu,

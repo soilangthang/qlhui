@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { unstable_cache } from "next/cache";
 
 import DashboardSummaryCards, {
   DashboardStripeFrame,
@@ -15,6 +16,7 @@ import DashboardSummaryCards, {
 import { assertChuHuiUserId } from "@/lib/chu-hui-scope";
 import { addCycleFromDate } from "@/lib/hui-member-line-metrics";
 import { hoChiMinhCalendarKeyFromDate, hoChiMinhCalendarKeyFromIso } from "@/lib/local-calendar";
+import { logPerf, perfNowMs } from "@/lib/perf-log";
 import { prisma } from "@/lib/prisma";
 
 /** Card trắng — cùng phong cách dashboard (viền xám nhạt, bo góc). */
@@ -27,10 +29,13 @@ function formatMoneyVN(value: number) {
   return `${value.toLocaleString("vi-VN")}đ`;
 }
 
-function formatDateVN(value: Date) {
-  const d = String(value.getDate()).padStart(2, "0");
-  const m = String(value.getMonth() + 1).padStart(2, "0");
-  const y = value.getFullYear();
+function formatDateVN(value: unknown) {
+  const date =
+    value instanceof Date ? value : typeof value === "string" || typeof value === "number" ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return "—";
+  const d = String(date.getDate()).padStart(2, "0");
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const y = date.getFullYear();
   return `${d}/${m}/${y}`;
 }
 
@@ -43,60 +48,88 @@ function lineStatusDisplay(line: { soChan: number; _count: { openings: number } 
   return { label: "Đang chờ", variant: "wait" as const };
 }
 
-export default async function DashboardPage() {
-  const userId = await assertChuHuiUserId();
+function toIsoString(input: unknown): string {
+  if (input instanceof Date) return input.toISOString();
+  if (typeof input === "string") {
+    const d = new Date(input);
+    return Number.isNaN(d.getTime()) ? "" : d.toISOString();
+  }
+  return "";
+}
 
-  const [huiMemberCount, choGiaoTien, lines, grossSum, paidOutSum, commissionRows, latestOpeningGlobal] =
-    await Promise.all([
-    prisma.huiMember.count({ where: { userId } }),
-    prisma.huiOpening.findMany({
-      where: { status: "CHO_GIAO_TIEN", huiLine: { userId } },
-      orderBy: { ngayKhui: "desc" },
-      take: 12,
-      select: {
-        id: true,
-        kyThu: true,
-        ngayKhui: true,
-        winnerName: true,
-        winnerPhone: true,
-        finalPayout: true,
-        huiLine: { select: { id: true, name: true } },
-      },
-    }),
-    prisma.huiLine.findMany({
-      where: { userId },
-      orderBy: { createdAt: "asc" },
-      include: {
-        _count: { select: { legs: true, openings: true } },
-        openings: {
-          orderBy: { kyThu: "desc" },
-          take: 1,
-          select: { kyThu: true, ngayKhui: true },
-        },
-      },
-    }),
-    prisma.huiOpening.aggregate({
-      where: { huiLine: { userId } },
-      _sum: { grossPayout: true },
-    }),
-    prisma.huiOpening.aggregate({
-      where: { status: "DA_GIAO_TIEN", huiLine: { userId } },
-      _sum: { finalPayout: true },
-    }),
-    prisma.huiOpening.findMany({
-      where: { huiLine: { userId } },
-      select: { grossPayout: true, finalPayout: true },
-    }),
-    prisma.huiOpening.findFirst({
-      where: { huiLine: { userId } },
-      orderBy: [{ ngayKhui: "desc" }, { kyThu: "desc" }, { createdAt: "desc" }],
-      select: {
-        kyThu: true,
-        ngayKhui: true,
-        huiLine: { select: { name: true } },
-      },
-    }),
-  ]);
+const loadDashboardDataCached = unstable_cache(
+  async (userId: string) => {
+    const [huiMemberCount, choGiaoTien, lines, grossSum, paidOutSum, commissionRows, latestOpeningGlobal] =
+      await Promise.all([
+        prisma.huiMember.count({ where: { userId } }),
+        prisma.huiOpening.findMany({
+          where: { status: "CHO_GIAO_TIEN", huiLine: { userId } },
+          orderBy: { ngayKhui: "desc" },
+          take: 12,
+          select: {
+            id: true,
+            kyThu: true,
+            ngayKhui: true,
+            winnerName: true,
+            winnerPhone: true,
+            finalPayout: true,
+            huiLine: { select: { id: true, name: true } },
+          },
+        }),
+        prisma.huiLine.findMany({
+          where: { userId },
+          orderBy: { createdAt: "asc" },
+          include: {
+            _count: { select: { legs: true, openings: true } },
+            openings: {
+              orderBy: { kyThu: "desc" },
+              take: 1,
+              select: { kyThu: true, ngayKhui: true },
+            },
+          },
+        }),
+        prisma.huiOpening.aggregate({
+          where: { huiLine: { userId } },
+          _sum: { grossPayout: true },
+        }),
+        prisma.huiOpening.aggregate({
+          where: { status: "DA_GIAO_TIEN", huiLine: { userId } },
+          _sum: { finalPayout: true },
+        }),
+        prisma.huiOpening.findMany({
+          where: { huiLine: { userId } },
+          select: { grossPayout: true, finalPayout: true },
+        }),
+        prisma.huiOpening.findFirst({
+          where: { huiLine: { userId } },
+          orderBy: [{ ngayKhui: "desc" }, { kyThu: "desc" }, { createdAt: "desc" }],
+          select: {
+            kyThu: true,
+            ngayKhui: true,
+            huiLine: { select: { name: true } },
+          },
+        }),
+      ]);
+
+    return {
+      huiMemberCount,
+      choGiaoTien,
+      lines,
+      grossSum,
+      paidOutSum,
+      commissionRows,
+      latestOpeningGlobal,
+    };
+  },
+  ["dashboard-page-data-v1"],
+  { revalidate: 10, tags: ["dashboard-data"] },
+);
+
+export default async function DashboardPage() {
+  const t0 = perfNowMs();
+  const userId = await assertChuHuiUserId();
+  const { huiMemberCount, choGiaoTien, lines, grossSum, paidOutSum, commissionRows, latestOpeningGlobal } =
+    await loadDashboardDataCached(userId);
 
   const totalGross = Number(grossSum._sum.grossPayout ?? 0);
   const totalPaidOut = Number(paidOutSum._sum.finalPayout ?? 0);
@@ -116,7 +149,7 @@ export default async function DashboardPage() {
   const canDongTrongNgay = lines.filter((l) => {
     const latest = l.openings[0];
     if (!latest) return false;
-    return hoChiMinhCalendarKeyFromIso(latest.ngayKhui.toISOString()) === todayKey;
+    return hoChiMinhCalendarKeyFromIso(toIsoString(latest.ngayKhui)) === todayKey;
   }).length;
   const canKhuiHomNay = lines.filter((l) => {
     if (l._count.openings >= l.soChan) return false;
@@ -135,6 +168,7 @@ export default async function DashboardPage() {
     nextKySub = `${lineFallback.name} • Ngày mở dây`;
   }
 
+  logPerf("DashboardPage", t0, `userId=${userId} lines=${lines.length} choGiaoTien=${choGiaoTien.length}`);
   return (
       <div className="min-h-[calc(100vh-140px)]">
         <DashboardSummaryCards

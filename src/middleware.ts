@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 import { AUTH_COOKIE_NAME } from "@/lib/auth-constants";
+import { logPerf, perfNowMs } from "@/lib/perf-log";
 
 type JwtPayload = { sub?: string; rule?: string };
 
@@ -36,34 +37,6 @@ async function readAuth(request: NextRequest): Promise<
     return { ok: true, sub, rule };
   } catch {
     return { ok: false, reason: "invalid" };
-  }
-}
-
-const CHU_HUI_ME_FETCH_MS = 2500;
-
-/**
- * null = không xác định — không ép redirect.
- * Có timeout để tránh treo vĩnh viễn: gọi nội bộ /api trong middleware trên dev đôi khi deadlock (request chờ middleware, middleware chờ API).
- */
-async function fetchChuHuiAccessLocked(request: NextRequest): Promise<boolean | null> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), CHU_HUI_ME_FETCH_MS);
-  try {
-    const url = new URL("/api/auth/me", request.nextUrl.origin);
-    const res = await fetch(url, {
-      headers: { cookie: request.headers.get("cookie") ?? "" },
-      cache: "no-store",
-      signal: controller.signal,
-    });
-    clearTimeout(timeoutId);
-    if (!res.ok) return null;
-    const data = (await res.json()) as { access?: { locked?: boolean } };
-    if (data.access?.locked === true) return true;
-    if (data.access?.locked === false) return false;
-    return null;
-  } catch {
-    clearTimeout(timeoutId);
-    return null;
   }
 }
 
@@ -102,11 +75,16 @@ function isChuHuiRoute(path: string) {
 }
 
 export async function middleware(request: NextRequest) {
+  const t0 = perfNowMs();
   const path = request.nextUrl.pathname;
   const isApi = path.startsWith("/api/");
+  const done = (res: NextResponse) => {
+    logPerf("middleware", t0, `path=${path} status=${res.status}`);
+    return res;
+  };
 
   if (path.startsWith("/api/auth") || path === "/login" || path === "/register") {
-    return NextResponse.next();
+    return done(NextResponse.next());
   }
 
   const redirectLogin = () => NextResponse.redirect(new URL("/login", request.url));
@@ -119,19 +97,19 @@ export async function middleware(request: NextRequest) {
     if (!auth.ok) {
       if (auth.reason === "missing_secret") {
         return isApi
-          ? NextResponse.json({ message: "Lỗi cấu hình máy chủ" }, { status: 500 })
-          : redirectLogin();
+          ? done(NextResponse.json({ message: "Lỗi cấu hình máy chủ" }, { status: 500 }))
+          : done(redirectLogin());
       }
-      return redirectLogin();
+      return done(redirectLogin());
     }
-    if (auth.rule === "admin") return redirectQuanTri();
-    const locked = await fetchChuHuiAccessLocked(request);
-    if (locked === false) return redirectDash();
-    return NextResponse.next();
+    if (auth.rule === "admin") return done(redirectQuanTri());
+    // Tránh gọi API nội bộ trong middleware (tăng thêm roundtrip/độ trễ tab switch).
+    // Trạng thái trial lock vẫn được chặn đầy đủ ở server pages/API qua chu-hui-scope.
+    return done(NextResponse.next());
   }
 
   if (!isAdminRoute(path) && !isChuHuiRoute(path)) {
-    return NextResponse.next();
+    return done(NextResponse.next());
   }
 
   const auth = await readAuth(request);
@@ -139,38 +117,33 @@ export async function middleware(request: NextRequest) {
   if (!auth.ok) {
     if (auth.reason === "missing_secret") {
       return isApi
-        ? NextResponse.json({ message: "Lỗi cấu hình máy chủ" }, { status: 500 })
-        : redirectLogin();
+        ? done(NextResponse.json({ message: "Lỗi cấu hình máy chủ" }, { status: 500 }))
+        : done(redirectLogin());
     }
-    if (isApi && isAdminRoute(path)) return jsonForbidden();
-    if (isApi && isChuHuiRoute(path)) return jsonUnauthorized();
-    return redirectLogin();
+    if (isApi && isAdminRoute(path)) return done(jsonForbidden());
+    if (isApi && isChuHuiRoute(path)) return done(jsonUnauthorized());
+    return done(redirectLogin());
   }
 
   if (isAdminRoute(path)) {
     if (auth.rule !== "admin") {
-      return isApi ? jsonForbidden() : redirectDash();
+      return isApi ? done(jsonForbidden()) : done(redirectDash());
     }
-    return NextResponse.next();
+    return done(NextResponse.next());
   }
 
   if (auth.rule === "admin") {
     return isApi
-      ? jsonForbidden("Admin không truy cập được dữ liệu chủ hụi.")
-      : redirectQuanTri();
-  }
-
-  if (!isApi && !isChuHuiPathAllowedWhenTrialLocked(path)) {
-    const locked = await fetchChuHuiAccessLocked(request);
-    if (locked === true) return redirectHetHan();
+      ? done(jsonForbidden("Admin không truy cập được dữ liệu chủ hụi."))
+      : done(redirectQuanTri());
   }
 
   /** Tránh phụ thuộc redirect() trong RSC gốc — một số bản Turbopack có thể render trắng khi chỉ redirect ở page. */
   if (path === "/" && !isApi) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    return done(NextResponse.redirect(new URL("/dashboard", request.url)));
   }
 
-  return NextResponse.next();
+  return done(NextResponse.next());
 }
 
 export const config = {

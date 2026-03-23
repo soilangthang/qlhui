@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { getClientCache, setClientCache } from "@/lib/client-query-cache";
 
 type DayHui = {
   id: string;
@@ -122,6 +123,11 @@ export default function DayHuiPanel() {
 
   useEffect(() => {
     async function loadLines() {
+      const cached = getClientCache<DayHui[]>("day-hui:lines");
+      if (cached) {
+        setLines(cached);
+        return;
+      }
       setLoading(true);
       setError("");
       try {
@@ -132,25 +138,26 @@ export default function DayHuiPanel() {
           return;
         }
 
-        setLines(
-          (data.lines ?? []).map(
-            (line: {
-              id: string;
-              name: string;
-              soChan: number;
-              mucHuiThang: string;
-              tienCo: string | null;
-              chuKy: "NGAY" | "THANG" | "NAM";
-              ngayMo: string;
-              status: "DANG_CHAY" | "SAP_MO" | "CHO_GOP";
-              hasOpened?: boolean;
-              openingCount?: number;
-            }) => ({
-              ...line,
-              ngayMo: formatDateDisplay(new Date(line.ngayMo)),
-            }),
-          ),
+        const nextLines = (data.lines ?? []).map(
+          (line: {
+            id: string;
+            name: string;
+            soChan: number;
+            mucHuiThang: string;
+            tienCo: string | null;
+            chuKy: "NGAY" | "THANG" | "NAM";
+            ngayMo: string;
+            status: "DANG_CHAY" | "SAP_MO" | "CHO_GOP";
+            hasOpened?: boolean;
+            openingCount?: number;
+          }) => ({
+            ...line,
+            ngayMo: formatDateDisplay(new Date(line.ngayMo)),
+          }),
         );
+        setLines(nextLines);
+        // Cache ngắn để tránh refetch mỗi lần đổi tab rồi quay lại.
+        setClientCache("day-hui:lines", nextLines, 20_000);
       } catch {
         setError("Không thể kết nối máy chủ");
       } finally {
@@ -160,6 +167,11 @@ export default function DayHuiPanel() {
 
     void loadLines();
   }, []);
+
+  useEffect(() => {
+    // Đồng bộ cache cục bộ sau mọi thao tác tạo/sửa/xóa để quay lại tab không bị dữ liệu cũ.
+    setClientCache("day-hui:lines", lines, 20_000);
+  }, [lines]);
 
   function formatDateDisplay(date: Date) {
     const d = String(date.getDate()).padStart(2, "0");

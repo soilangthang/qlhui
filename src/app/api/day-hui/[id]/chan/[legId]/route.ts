@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { z } from "zod";
 
 import { requireChuHuiUserForApi } from "@/lib/chu-hui-scope";
+import { clearDayHuiLinesCache } from "@/lib/day-hui-cache";
 import { prisma } from "@/lib/prisma";
 
 const updateLegSchema = z.object({
@@ -46,6 +48,10 @@ export async function PUT(
       return NextResponse.json({ message: "Không tìm thấy chân hụi" }, { status: 404 });
     }
 
+    clearDayHuiLinesCache(gate.userId);
+    revalidateTag("thu-tien-panel-data", "max");
+    revalidateTag("theo-doi-data", "max");
+    revalidateTag("dashboard-data", "max");
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("PUT /api/day-hui/[id]/chan/[legId] error:", error);
@@ -84,6 +90,10 @@ export async function DELETE(
       return NextResponse.json({ message: "Không tìm thấy chân hụi" }, { status: 404 });
     }
 
+    clearDayHuiLinesCache(gate.userId);
+    revalidateTag("thu-tien-panel-data", "max");
+    revalidateTag("theo-doi-data", "max");
+    revalidateTag("dashboard-data", "max");
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("DELETE /api/day-hui/[id]/chan/[legId] error:", error);
