@@ -7,8 +7,10 @@ import type { NextConfig } from "next";
 const PROJECT_ROOT = path.dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
-  /** Dùng distDir riêng để tránh lỗi artifact .next bị hỏng trên Windows. */
-  distDir: ".next-prod",
+  /** Dùng distDir riêng để tránh lỗi artifact .next bị hỏng trên Windows (local only).
+   * Trên Vercel, giữ mặc định `.next` để Vercel tìm đúng `routes-manifest.json`.
+   */
+  ...(process.env.VERCEL ? {} : { distDir: ".next-prod" }),
   /** Tránh bundle Prisma vào .next — nếu không, Turbopack có thể giữ client cũ (thiếu model mới sau generate). */
   serverExternalPackages: ["@prisma/client", "prisma"],
   turbopack: {
