@@ -21,6 +21,13 @@ const getUserScopeRowByIdCached = unstable_cache(
 
 const getUserScopeRowById = cache(async (userId: string) => getUserScopeRowByIdCached(userId));
 
+function normalizeUserScopeRow<T extends { createdAt: Date | string }>(row: T): T {
+  if (row.createdAt instanceof Date) return row;
+  const d = new Date(row.createdAt);
+  if (Number.isNaN(d.getTime())) return { ...row, createdAt: new Date(0) };
+  return { ...row, createdAt: d };
+}
+
 /** Trang chủ hụi: đã đăng nhập, không phải admin, còn dùng thử hoặc đã mở khóa. */
 export async function assertChuHuiUserId(): Promise<string> {
   const t0 = perfNowMs();
@@ -29,8 +36,9 @@ export async function assertChuHuiUserId(): Promise<string> {
   if (p.rule === "admin") redirect("/quan-tri");
 
   // cache() giúp tránh query user lặp lại trong cùng vòng render/request.
-  const row = await getUserScopeRowById(p.sub);
-  if (!row || row.rule !== "user") redirect("/login");
+  const rowRaw = await getUserScopeRowById(p.sub);
+  if (!rowRaw || rowRaw.rule !== "user") redirect("/login");
+  const row = normalizeUserScopeRow(rowRaw);
   if (isChuHuiTrialBlocked(row)) redirect("/het-han-dung-thu");
 
   logPerf("assertChuHuiUserId", t0, `userId=${p.sub}`);
@@ -59,10 +67,11 @@ export async function requireChuHuiUserForApi(): Promise<
     };
   }
 
-  const row = await getUserScopeRowById(p.sub);
-  if (!row || row.rule !== "user") {
+  const rowRaw = await getUserScopeRowById(p.sub);
+  if (!rowRaw || rowRaw.rule !== "user") {
     return { ok: false, response: NextResponse.json({ message: "Tài khoản không hợp lệ" }, { status: 403 }) };
   }
+  const row = normalizeUserScopeRow(rowRaw);
   if (isChuHuiTrialBlocked(row)) {
     return {
       ok: false,
