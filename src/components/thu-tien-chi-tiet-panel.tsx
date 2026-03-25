@@ -26,6 +26,7 @@ import {
   sharePdfFile,
 } from "@/lib/receipt-pdf";
 import PhieuGiaoHuiSection, { type PhieuGiaoSlipPayload } from "@/components/phieu-giao-hui-block";
+import { useDeferredReceiptImages } from "@/components/use-deferred-receipt-images";
 
 /**
  * Thu phóng khi in để gom phiếu vào 1 trang A4.
@@ -68,6 +69,8 @@ export default function ThuTienChiTietPanel({
   /** Theo kỳ mở trang chi tiết — phiếu giao tiền cho người hốt. */
   deliverySlip?: PhieuGiaoSlipPayload | null;
 }) {
+  const receipt = useDeferredReceiptImages(receiptSetting);
+
   const [memberId, setMemberId] = useState(defaultMemberId || members[0]?.id || "");
   const selectedMember = useMemo(
     () => members.find((item) => item.id === memberId) ?? null,
@@ -80,10 +83,10 @@ export default function ThuTienChiTietPanel({
   const receiptRows = useMemo(() => filterRowsForPhieuTamThu(displayRows, new Date()), [displayRows]);
 
   const slipNoteLines = useMemo(
-    () => slipNoteLinesFromSetting(receiptSetting.phieuGhiChu),
-    [receiptSetting.phieuGhiChu],
+    () => slipNoteLinesFromSetting(receipt.phieuGhiChu),
+    [receipt.phieuGhiChu],
   );
-  const ghiChuCustomized = Boolean((receiptSetting.phieuGhiChu ?? "").trim());
+  const ghiChuCustomized = Boolean((receipt.phieuGhiChu ?? "").trim());
 
   const summary = useMemo(() => {
     const totalSlots = receiptRows.reduce((acc, row) => acc + row.memberSlots, 0);
@@ -159,16 +162,16 @@ export default function ThuTienChiTietPanel({
   }, []);
 
   const currentDateText = formatViDateTime(receiptNow);
-  const qrValue = `${receiptSetting.bankName || "BANK"}|${receiptSetting.bankAccount || "000000"}|${
-    receiptSetting.accountName || receiptSetting.ownerName
+  const qrValue = `${receipt.bankName || "BANK"}|${receipt.bankAccount || "000000"}|${
+    receipt.accountName || receipt.ownerName
   }`;
   const autoQrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrValue)}`;
-  const qrUrl = receiptSetting.qrImageDataUrl?.trim() || receiptSetting.qrImageUrl?.trim() || autoQrUrl;
-  const ownerPhone = receiptSetting.phone?.trim() || "Chưa cập nhật";
-  const ownerAddress = receiptSetting.address?.trim() || "Chưa cập nhật";
-  const ownerBankAccount = receiptSetting.bankAccount?.trim() || "Chưa cập nhật";
-  const ownerBankName = receiptSetting.bankName?.trim() || "";
-  const ownerDisplayName = (receiptSetting.accountName || receiptSetting.ownerName || "Chủ hụi").trim();
+  const qrUrl = receipt.qrImageDataUrl?.trim() || receipt.qrImageUrl?.trim() || autoQrUrl;
+  const ownerPhone = receipt.phone?.trim() || "Chưa cập nhật";
+  const ownerAddress = receipt.address?.trim() || "Chưa cập nhật";
+  const ownerBankAccount = receipt.bankAccount?.trim() || "Chưa cập nhật";
+  const ownerBankName = receipt.bankName?.trim() || "";
+  const ownerDisplayName = (receipt.accountName || receipt.ownerName || "Chủ hụi").trim();
 
   const printRootRef = useRef<HTMLDivElement>(null);
   const [pdfCapturing, setPdfCapturing] = useState(false);
@@ -286,7 +289,7 @@ export default function ThuTienChiTietPanel({
   return (
     <section className="min-h-[calc(100vh-140px)] rounded-2xl border border-slate-300 bg-white p-4 shadow-sm print:min-h-0 print:h-auto print:border-0 print:p-0 print:shadow-none">
       {deliverySlip ? (
-        <PhieuGiaoHuiSection payload={deliverySlip} receiptSetting={receiptSetting} />
+        <PhieuGiaoHuiSection payload={deliverySlip} receiptSetting={receipt} />
       ) : null}
 
       <div className="mb-4 flex flex-col gap-3 print:hidden">
@@ -346,17 +349,17 @@ export default function ThuTienChiTietPanel({
         <div className="grid gap-3 border-b border-slate-300 p-4 md:grid-cols-2 print:gap-1 print:p-2">
         <div className="flex gap-3 text-sm font-medium text-slate-800">
           <img
-            src={receiptSetting.logoImageDataUrl?.trim() || "/app-logo.png"}
+            src={receipt.logoImageDataUrl?.trim() || "/app-logo.png"}
             alt=""
             width={56}
             height={56}
             crossOrigin={
-              (receiptSetting.logoImageDataUrl?.trim() || "").startsWith("data:") ? undefined : "anonymous"
+              (receipt.logoImageDataUrl?.trim() || "").startsWith("data:") ? undefined : "anonymous"
             }
             className="h-14 w-14 shrink-0 rounded-full object-cover print:h-12 print:w-12"
           />
           <div className="min-w-0">
-          <p className="text-lg font-bold print:text-base">{receiptSetting.huiName}</p>
+          <p className="text-lg font-bold print:text-base">{receipt.huiName}</p>
           <div className="mt-1 grid grid-cols-[90px_1fr] items-start gap-x-2 gap-y-0.5 text-[17px] leading-7 print:grid-cols-[72px_1fr] print:text-xs print:leading-snug">
             <span className="font-semibold">Địa chỉ:</span>
             <span>{ownerAddress}</span>
@@ -597,9 +600,9 @@ export default function ThuTienChiTietPanel({
             className="mx-auto mt-2 h-[210px] w-[210px] rounded-lg border border-slate-300 bg-white p-2 print:mt-1 print:h-[92px] print:w-[92px] print:p-0.5"
           />
           <p className="mt-2 text-sm font-semibold text-slate-800 print:mt-0.5 print:text-[9px] print:leading-tight">
-            {receiptSetting.accountName || receiptSetting.ownerName}
+            {receipt.accountName || receipt.ownerName}
           </p>
-          <p className="text-xs text-slate-600 print:text-[8px]">{receiptSetting.bankAccount || "-"}</p>
+          <p className="text-xs text-slate-600 print:text-[8px]">{receipt.bankAccount || "-"}</p>
         </div>
       </div>
       </div>

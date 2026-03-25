@@ -1,5 +1,6 @@
 import { unstable_cache } from "next/cache";
 
+import type { HuiOpeningForMetrics } from "@/lib/hui-member-line-metrics";
 import { getOwnerReceiptLogoDataUrl } from "@/lib/owner-receipt-logo";
 import { logPerf, perfNowMs } from "@/lib/perf-log";
 import { prisma } from "@/lib/prisma";
@@ -9,6 +10,11 @@ export { parseMemberIdFromNote } from "@/lib/member-tracking-key";
 
 type LoadThuTienOptions = {
   includeReceiptSetting?: boolean;
+  /**
+   * false: không nhúng QR/logo base64 trong RSC (client gọi /api/cai-dat/receipt-images).
+   * Giảm mạnh kích thước payload trang chi tiết hụi viên / phiếu thu.
+   */
+  embedReceiptImages?: boolean;
 };
 
 const loadRowsAndMembersCached = unstable_cache(
@@ -75,19 +81,17 @@ const loadRowsAndMembersCached = unstable_cache(
         latestWinnerPhone: latest?.winnerPhone ?? null,
         latestWinnerLegStt: latest?.winnerLegStt ?? null,
         latestWinnerSlots: latest?.winnerSlots ?? 1,
-        openings: openings.map((o) => ({
-          kyThu: o.kyThu,
-          ngayKhui: o.ngayKhui.toISOString(),
-          status: o.status,
-          contributionPerSlot: o.contributionPerSlot,
-          grossPayout: o.grossPayout,
-          finalPayout: o.finalPayout,
-          winnerName: o.winnerName,
-          winnerPhone: o.winnerPhone,
-          winnerLegStt: o.winnerLegStt,
-          winnerSlots: o.winnerSlots,
-          bidAmount: o.bidAmount,
-        })),
+        openings: openings.map(
+          (o): HuiOpeningForMetrics => ({
+            kyThu: o.kyThu,
+            status: o.status === "DA_GIAO_TIEN" ? "DA_GIAO_TIEN" : "CHO_GIAO_TIEN",
+            contributionPerSlot: o.contributionPerSlot,
+            winnerName: o.winnerName,
+            winnerPhone: o.winnerPhone,
+            winnerLegStt: o.winnerLegStt,
+            winnerSlots: o.winnerSlots,
+          }),
+        ),
         participants: line.legs.map((leg) => ({
           legStt: leg.stt,
           memberId: parseMemberIdFromNote(leg.note),
@@ -99,7 +103,7 @@ const loadRowsAndMembersCached = unstable_cache(
     logPerf("loadThuTienRowsAndMembers", t0, `userId=${userId} members=${members.length} rows=${rows.length}`);
     return { members, rows };
   },
-  ["thu-tien-rows-members-v1"],
+  ["thu-tien-rows-members-v2"],
   // TTL dài hơn để giảm truy vấn lặp khi người dùng chuyển tab qua lại.
   { revalidate: 90, tags: ["thu-tien-panel-data", "chi-tiet-hui-vien-data"] },
 );
@@ -155,9 +159,59 @@ const loadReceiptSettingForClientCached = unstable_cache(
   { revalidate: 600, tags: ["thu-tien-panel-data", "chi-tiet-hui-vien-data"] },
 );
 
+const loadReceiptSettingTextForClientCached = unstable_cache(
+  async (userId: string) => {
+    const receiptSetting =
+      (await prisma.ownerReceiptSetting.findUnique({
+        where: { userId },
+        select: {
+          huiName: true,
+          ownerName: true,
+          address: true,
+          phone: true,
+          bankAccount: true,
+          bankName: true,
+          accountName: true,
+          qrImageUrl: true,
+          phieuGhiChu: true,
+        },
+      })) ??
+      ({
+        huiName: "Hụi mini",
+        ownerName: "Chủ hụi",
+        address: "",
+        phone: "",
+        bankAccount: "",
+        bankName: "",
+        accountName: "",
+        qrImageUrl: "",
+        phieuGhiChu: "",
+      } as const);
+
+    const receiptSettingForClient = {
+      huiName: receiptSetting.huiName,
+      ownerName: receiptSetting.ownerName,
+      address: receiptSetting.address,
+      phone: receiptSetting.phone,
+      bankAccount: receiptSetting.bankAccount,
+      bankName: receiptSetting.bankName,
+      accountName: receiptSetting.accountName,
+      qrImageUrl: receiptSetting.qrImageUrl,
+      qrImageDataUrl: "",
+      logoImageDataUrl: "",
+      phieuGhiChu: receiptSetting.phieuGhiChu ?? "",
+    };
+
+    return { receiptSettingForClient };
+  },
+  ["thu-tien-receipt-setting-text-v1"],
+  { revalidate: 600, tags: ["thu-tien-panel-data", "chi-tiet-hui-vien-data"] },
+);
+
 export async function loadThuTienChiTietPanelData(userId: string, options: LoadThuTienOptions = {}) {
   const t0 = perfNowMs();
   const includeReceiptSetting = options.includeReceiptSetting ?? true;
+  const embedReceiptImages = options.embedReceiptImages ?? true;
   const { members, rows } = await loadRowsAndMembersCached(userId);
 
   if (!includeReceiptSetting) {
@@ -165,7 +219,13 @@ export async function loadThuTienChiTietPanelData(userId: string, options: LoadT
     return { members, rows };
   }
 
-  const settingBundle = await loadReceiptSettingForClientCached(userId);
-  logPerf("loadThuTienChiTietPanelData", t0, `userId=${userId} withSetting=true`);
+  const settingBundle = embedReceiptImages
+    ? await loadReceiptSettingForClientCached(userId)
+    : await loadReceiptSettingTextForClientCached(userId);
+  logPerf(
+    "loadThuTienChiTietPanelData",
+    t0,
+    `userId=${userId} withSetting=true embedImages=${embedReceiptImages}`,
+  );
   return { members, rows, receiptSettingForClient: settingBundle.receiptSettingForClient };
 }

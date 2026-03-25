@@ -13,17 +13,25 @@ export type HuiLineParticipant = {
   memberPhone: string | null;
 };
 
-export type HuiOpeningHistory = {
+/**
+ * Tối thiểu cho tính chân chết / lãi lỗ — không gửi gross/final/bid/ngày từng kỳ trong payload RSC
+ * (vẫn giữ trên `latest*` của dòng).
+ */
+export type HuiOpeningForMetrics = {
   kyThu: number;
-  ngayKhui: string;
   status: "CHO_GIAO_TIEN" | "DA_GIAO_TIEN";
   contributionPerSlot: number;
-  grossPayout: number;
-  finalPayout: number;
   winnerName: string | null;
   winnerPhone: string | null;
   winnerLegStt: number | null;
   winnerSlots: number;
+};
+
+/** Đầy đủ trường (vd. theo dõi / hiển thị lịch sử chi tiết). */
+export type HuiOpeningHistory = HuiOpeningForMetrics & {
+  ngayKhui: string;
+  grossPayout: number;
+  finalPayout: number;
   bidAmount: number;
 };
 
@@ -48,7 +56,7 @@ export type HuiLineDetailRow = {
   latestWinnerLegStt: number | null;
   latestWinnerSlots: number;
   participants: HuiLineParticipant[];
-  openings: HuiOpeningHistory[];
+  openings: HuiOpeningForMetrics[];
 };
 
 export function formatMoneyVN(value: number) {
@@ -143,7 +151,7 @@ export function participantMatchesMember(p: HuiLineParticipant, member: HuiMembe
  */
 function bumpDeadSlotsAfterMemberWonKy(
   row: HuiLineDetailRow,
-  opening: Pick<HuiOpeningHistory, "winnerName" | "winnerPhone" | "winnerLegStt" | "winnerSlots">,
+  opening: Pick<HuiOpeningForMetrics, "winnerName" | "winnerPhone" | "winnerLegStt" | "winnerSlots">,
   member: HuiMemberRef,
   memberSlots: number,
   deadSlots: number,
@@ -307,7 +315,7 @@ export function balanceAmDuong(row: RowWithMemberSlots, member: HuiMemberRef | n
 
 function payOutDaTruCoForOpening(
   row: HuiLineDetailRow,
-  opening: HuiOpeningHistory,
+  opening: HuiOpeningForMetrics,
   memberSlots: number,
 ): number {
   const contribution = opening.contributionPerSlot || row.lineAmount;

@@ -19,16 +19,12 @@ function opening(
 ) {
   return {
     kyThu: ky,
-    ngayKhui: `2026-0${ky}-01T00:00:00.000Z`,
     status,
     contributionPerSlot: contribution,
-    grossPayout: 0,
-    finalPayout: 0,
     winnerName: winner.name,
     winnerPhone: winner.phone,
     winnerLegStt: 1,
     winnerSlots: 1,
-    bidAmount: 0,
   };
 }
 
@@ -40,6 +36,10 @@ function line(
 ): HuiLineDetailRow {
   const lastDa = [...openings].filter((o) => o.status === "DA_GIAO_TIEN").sort((x, y) => y.kyThu - x.kyThu)[0];
   const contrib = lastDa?.contributionPerSlot ?? 900_000;
+  const latestDateIso =
+    lastDa != null
+      ? `2026-${String(lastDa.kyThu).padStart(2, "0")}-01T00:00:00.000Z`
+      : null;
   return {
     lineId: id,
     lineName: id,
@@ -49,7 +49,7 @@ function line(
     chuKy: "THANG",
     totalCycles,
     latestKy: lastDa?.kyThu ?? null,
-    latestDate: lastDa?.ngayKhui ?? null,
+    latestDate: latestDateIso,
     latestOpeningStatus: lastDa ? "DA_GIAO_TIEN" : null,
     latestBidAmount: 0,
     latestContributionPerSlot: contrib,
@@ -124,16 +124,12 @@ describe("buildMemberBalanceReport", () => {
         [
           {
             kyThu: 1,
-            ngayKhui: "2026-01-01T00:00:00.000Z",
             status: "DA_GIAO_TIEN",
             contributionPerSlot: 900_000,
-            grossPayout: 0,
-            finalPayout: 0,
             winnerName: an.name,
             winnerPhone: an.phone,
             winnerLegStt: 1,
             winnerSlots: 1,
-            bidAmount: 0,
           },
         ],
         10,

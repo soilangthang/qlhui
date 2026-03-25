@@ -45,7 +45,9 @@ export default async function ThuTienChiTietPage({
   });
   if (!opening) notFound();
 
-  const { members, rows, receiptSettingForClient } = await loadThuTienChiTietPanelData(userId);
+  const { members, rows, receiptSettingForClient } = await loadThuTienChiTietPanelData(userId, {
+    embedReceiptImages: false,
+  });
   const receiptSetting = receiptSettingForClient ?? {
     huiName: "Hụi mini",
     ownerName: "Chủ hụi",

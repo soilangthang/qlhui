@@ -11,6 +11,7 @@ import {
   rowsForMember,
   type HuiLineDetailRow,
   type HuiMemberRef,
+  type RowWithMemberSlots,
 } from "@/lib/hui-member-line-metrics";
 import {
   canSharePdfFiles,
@@ -19,6 +20,7 @@ import {
   safePdfFileBase,
   sharePdfFile,
 } from "@/lib/receipt-pdf";
+import { useDeferredReceiptImages } from "@/components/use-deferred-receipt-images";
 import { getClientCache, setClientCache } from "@/lib/client-query-cache";
 
 function printScaleForLineCount(lineCount: number): number {
@@ -64,6 +66,8 @@ export default function ChiTietHuiVienPanel({
   defaultMemberId: string;
   receiptSetting: ReceiptSetting;
 }) {
+  const receiptSettingHydrated = useDeferredReceiptImages(receiptSetting);
+
   const [memberId, setMemberId] = useState(() => {
     const cachedId = getClientCache<string>("chi-tiet-hui-vien:selected-member-id");
     if (cachedId && members.some((m) => m.id === cachedId)) return cachedId;
@@ -75,15 +79,24 @@ export default function ChiTietHuiVienPanel({
   );
 
   const rowsVersion = useMemo(
-    () => rows.map((r) => `${r.lineId}:${r.latestKy ?? 0}:${r.latestDate ?? ""}:${r.memberSlots}`).join("|"),
+    () =>
+      rows
+        .map(
+          (r) =>
+            `${r.lineId}:${r.latestKy ?? 0}:${r.latestDate ?? ""}:${r.participants.map((p) => `${p.legStt}:${p.memberId ?? ""}`).join(",")}:${r.openings.map((o) => `${o.kyThu}:${o.status}`).join(",")}`,
+        )
+        .join("|"),
     [rows],
   );
   const derived = useMemo(() => {
     if (!selectedMember) {
-      return { displayRows: [] as HuiLineDetailRow[], totals: { chan: 0, chet: 0, song: 0, amDuong: 0 } };
+      return { displayRows: [] as RowWithMemberSlots[], totals: { chan: 0, chet: 0, song: 0, amDuong: 0 } };
     }
     const cacheKey = `chi-tiet-hui-vien:derived:${selectedMember.id}:${rowsVersion}`;
-    const cached = getClientCache<{ displayRows: HuiLineDetailRow[]; totals: { chan: number; chet: number; song: number; amDuong: number } }>(cacheKey);
+    const cached = getClientCache<{
+      displayRows: RowWithMemberSlots[];
+      totals: { chan: number; chet: number; song: number; amDuong: number };
+    }>(cacheKey);
     if (cached) return cached;
 
     const displayRows = rowsForMember(rows, selectedMember);
@@ -122,11 +135,11 @@ export default function ChiTietHuiVienPanel({
     setClientCache("chi-tiet-hui-vien:selected-member-id", memberId, 180_000);
   }, [memberId]);
 
-  const ownerPhone = receiptSetting.phone?.trim() || "Chưa cập nhật";
-  const ownerAddress = receiptSetting.address?.trim() || "Chưa cập nhật";
-  const ownerBankAccount = receiptSetting.bankAccount?.trim() || "Chưa cập nhật";
-  const ownerBankName = receiptSetting.bankName?.trim() || "";
-  const ownerDisplayName = (receiptSetting.accountName || receiptSetting.ownerName || "Chủ hụi").trim();
+  const ownerPhone = receiptSettingHydrated.phone?.trim() || "Chưa cập nhật";
+  const ownerAddress = receiptSettingHydrated.address?.trim() || "Chưa cập nhật";
+  const ownerBankAccount = receiptSettingHydrated.bankAccount?.trim() || "Chưa cập nhật";
+  const ownerBankName = receiptSettingHydrated.bankName?.trim() || "";
+  const ownerDisplayName = (receiptSettingHydrated.accountName || receiptSettingHydrated.ownerName || "Chủ hụi").trim();
 
   const handleSharePdf = useCallback(async () => {
     const el = printRootRef.current;
@@ -287,17 +300,17 @@ export default function ChiTietHuiVienPanel({
         <div className="grid gap-3 border-b border-slate-300 p-4 md:grid-cols-2 print:gap-1 print:p-2">
           <div className="flex gap-3 text-sm font-medium text-slate-800">
             <img
-              src={receiptSetting.logoImageDataUrl?.trim() || "/app-logo.png"}
+              src={receiptSettingHydrated.logoImageDataUrl?.trim() || "/app-logo.png"}
               alt=""
               width={56}
               height={56}
               crossOrigin={
-                (receiptSetting.logoImageDataUrl?.trim() || "").startsWith("data:") ? undefined : "anonymous"
+                (receiptSettingHydrated.logoImageDataUrl?.trim() || "").startsWith("data:") ? undefined : "anonymous"
               }
               className="h-14 w-14 shrink-0 rounded-full object-cover print:h-12 print:w-12"
             />
             <div className="min-w-0">
-              <p className="text-lg font-bold print:text-base">{receiptSetting.huiName}</p>
+              <p className="text-lg font-bold print:text-base">{receiptSettingHydrated.huiName}</p>
               <div className="mt-1 grid grid-cols-[90px_1fr] items-start gap-x-2 gap-y-0.5 text-[17px] leading-7 print:grid-cols-[72px_1fr] print:text-xs print:leading-snug">
                 <span className="font-semibold">Địa chỉ:</span>
                 <span>{ownerAddress}</span>
