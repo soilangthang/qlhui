@@ -4,6 +4,7 @@ type CacheEntry<T> = {
 };
 
 const mem = new Map<string, CacheEntry<unknown>>();
+const MIN_TTL_MS = 60_000;
 
 export function getClientCache<T>(key: string): T | null {
   const cur = mem.get(key);
@@ -16,7 +17,8 @@ export function getClientCache<T>(key: string): T | null {
 }
 
 export function setClientCache<T>(key: string, value: T, ttlMs: number) {
-  mem.set(key, { value, expiresAt: Date.now() + Math.max(1, ttlMs) });
+  // Giữ cache đủ lâu để người dùng chuyển tab qua lại vẫn thấy phản hồi gần như tức thì.
+  mem.set(key, { value, expiresAt: Date.now() + Math.max(MIN_TTL_MS, ttlMs) });
 }
 
 export function deleteClientCache(key: string) {

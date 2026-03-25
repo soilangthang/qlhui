@@ -127,12 +127,10 @@ export default function MobileBottomNav({ pathname }: { pathname: string }) {
       <div className="mx-auto flex min-w-0 max-w-full">
           {items.map((item) => {
             const active = item.match(pathname);
-            const disablePrefetch = item.href === "/thu-tien" || item.href === "/chi-tiet-hui-vien";
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                prefetch={disablePrefetch ? false : undefined}
                 className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 px-0.5 py-2 outline-none ring-amber-400/50 focus-visible:ring-2 ${
                   active ? "bg-amber-50/80" : "active:bg-slate-50"
                 }`}

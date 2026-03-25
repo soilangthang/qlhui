@@ -169,13 +169,10 @@ export default function HuiShell({ children }: Readonly<{ children: React.ReactN
           <nav className="mt-3 space-y-2">
             {menus.map((menu) => {
               const active = pathname === menu.href;
-              const disablePrefetch =
-                menu.href === "/thu-tien" || menu.href === "/chi-tiet-hui-vien";
               return (
                 <Link
                   key={menu.href}
                   href={menu.href}
-                  prefetch={disablePrefetch ? false : undefined}
                   className={`block w-full rounded-xl px-4 py-3 text-left text-sm font-semibold ${
                     active
                       ? "bg-slate-900 text-white"
