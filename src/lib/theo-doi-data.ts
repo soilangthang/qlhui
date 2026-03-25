@@ -69,6 +69,7 @@ function memberRefFromGroup(g: {
 const loadTheoDoiDataCached = unstable_cache(
   async (userId: string): Promise<TheoDoiLinePayload[]> => {
   const t0 = perfNowMs();
+  /** Tách legs và openings: hai query phẳng thường nhanh hơn một findMany lồng openings (ít join lặp). */
   const lines = await prisma.huiLine.findMany({
     where: { userId },
     orderBy: { createdAt: "asc" },
@@ -81,28 +82,47 @@ const loadTheoDoiDataCached = unstable_cache(
       chuKy: true,
       ngayMo: true,
       legs: { select: { stt: true, memberName: true, memberPhone: true, note: true } },
-      openings: {
-        orderBy: { kyThu: "asc" },
-        select: {
-          id: true,
-          kyThu: true,
-          ngayKhui: true,
-          status: true,
-          bidAmount: true,
-          contributionPerSlot: true,
-          grossPayout: true,
-          finalPayout: true,
-          winnerName: true,
-          winnerPhone: true,
-          winnerLegStt: true,
-          winnerSlots: true,
-        },
-      },
     },
   });
 
+  const lineIds = lines.map((l) => l.id);
+  if (lineIds.length === 0) {
+    logPerf("loadTheoDoiData", t0, `userId=${userId} lines=0`);
+    return [];
+  }
+
+  const allOpenings = await prisma.huiOpening.findMany({
+    where: { huiLineId: { in: lineIds } },
+    orderBy: [{ huiLineId: "asc" }, { kyThu: "asc" }],
+    select: {
+      id: true,
+      huiLineId: true,
+      kyThu: true,
+      ngayKhui: true,
+      status: true,
+      bidAmount: true,
+      contributionPerSlot: true,
+      grossPayout: true,
+      finalPayout: true,
+      winnerName: true,
+      winnerPhone: true,
+      winnerLegStt: true,
+      winnerSlots: true,
+    },
+  });
+
+  const openingsByLine = new Map<string, typeof allOpenings>();
+  for (const o of allOpenings) {
+    const bucket = openingsByLine.get(o.huiLineId);
+    if (bucket) bucket.push(o);
+    else openingsByLine.set(o.huiLineId, [o]);
+  }
+
   const openingIds = lines
-    .map((l) => (l.openings.length > 0 ? l.openings[l.openings.length - 1]?.id : undefined))
+    .map((l) => {
+      const arr = openingsByLine.get(l.id);
+      return arr && arr.length > 0 ? arr[arr.length - 1]!.id : undefined;
+    })
     .filter((id): id is string => Boolean(id));
   const marks = await loadMarksForOpenings(openingIds);
 
@@ -112,7 +132,7 @@ const loadTheoDoiDataCached = unstable_cache(
   }
 
   const out = lines.map((line) => {
-    const openingsAsc = line.openings ?? [];
+    const openingsAsc = openingsByLine.get(line.id) ?? [];
     const latest = openingsAsc.length > 0 ? openingsAsc[openingsAsc.length - 1]! : null;
     const groupMap = new Map<
       string,
@@ -168,19 +188,17 @@ const loadTheoDoiDataCached = unstable_cache(
       latestWinnerLegStt: latest?.winnerLegStt ?? null,
       latestWinnerSlots: latest?.winnerSlots ?? 1,
       participants,
-      openings: openingsAsc.map((o) => ({
-        kyThu: o.kyThu,
-        ngayKhui: o.ngayKhui.toISOString(),
-        status: o.status === "DA_GIAO_TIEN" ? "DA_GIAO_TIEN" : "CHO_GIAO_TIEN",
-        contributionPerSlot: o.contributionPerSlot,
-        grossPayout: o.grossPayout,
-        finalPayout: o.finalPayout,
-        winnerName: o.winnerName,
-        winnerPhone: o.winnerPhone,
-        winnerLegStt: o.winnerLegStt,
-        winnerSlots: o.winnerSlots,
-        bidAmount: o.bidAmount,
-      })),
+      openings: openingsAsc.map(
+        (o): HuiOpeningForMetrics => ({
+          kyThu: o.kyThu,
+          status: o.status === "DA_GIAO_TIEN" ? "DA_GIAO_TIEN" : "CHO_GIAO_TIEN",
+          contributionPerSlot: o.contributionPerSlot,
+          winnerName: o.winnerName,
+          winnerPhone: o.winnerPhone,
+          winnerLegStt: o.winnerLegStt,
+          winnerSlots: o.winnerSlots,
+        }),
+      ),
     };
 
     const groups = Array.from(groupMap.values()).map((g) => {
@@ -225,9 +243,9 @@ const loadTheoDoiDataCached = unstable_cache(
   logPerf("loadTheoDoiData", t0, `userId=${userId} lines=${out.length}`);
   return out;
   },
-  ["theo-doi-data-v2"],
+  ["theo-doi-data-v3"],
   // TTL dài hơn để tab Theo dõi phản hồi nhanh khi quay lại (mutate vẫn revalidateTag).
-  { revalidate: 180, tags: ["theo-doi-data"] },
+  { revalidate: 300, tags: ["theo-doi-data"] },
 );
 
 export async function loadTheoDoiData(userId: string): Promise<TheoDoiLinePayload[]> {
