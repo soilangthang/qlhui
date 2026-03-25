@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { unstable_cache } from "next/cache";
 import { NextResponse } from "next/server";
 import { cache } from "react";
 
@@ -7,12 +8,18 @@ import { isChuHuiTrialBlocked } from "@/lib/chu-hui-trial";
 import { logPerf, perfNowMs } from "@/lib/perf-log";
 import { prisma } from "@/lib/prisma";
 
-const getUserScopeRowById = cache(async (userId: string) => {
-  return prisma.user.findUnique({
-    where: { id: userId },
-    select: { id: true, rule: true, createdAt: true, chuHuiAccessUnlocked: true },
-  });
-});
+const getUserScopeRowByIdCached = unstable_cache(
+  async (userId: string) => {
+    return prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, rule: true, createdAt: true, chuHuiAccessUnlocked: true },
+    });
+  },
+  ["user-scope-v1"],
+  { revalidate: 30, tags: ["user-scope"] },
+);
+
+const getUserScopeRowById = cache(async (userId: string) => getUserScopeRowByIdCached(userId));
 
 /** Trang chủ hụi: đã đăng nhập, không phải admin, còn dùng thử hoặc đã mở khóa. */
 export async function assertChuHuiUserId(): Promise<string> {

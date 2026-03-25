@@ -10,9 +10,9 @@ type HuiVien = {
   note: string;
 };
 
-export default function HuiVienPanel() {
+export default function HuiVienPanel({ initialMembers = [] }: { initialMembers?: HuiVien[] }) {
   const PAGE_SIZE = 20;
-  const [members, setMembers] = useState<HuiVien[]>([]);
+  const [members, setMembers] = useState<HuiVien[]>(initialMembers);
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -60,6 +60,11 @@ export default function HuiVienPanel() {
         setMembers(cached);
         return;
       }
+      if (initialMembers.length > 0) {
+        setMembers(initialMembers);
+        setClientCache("hui-vien:list", initialMembers, 60_000);
+        return;
+      }
       setLoading(true);
       setError("");
       try {
@@ -87,7 +92,7 @@ export default function HuiVienPanel() {
     }
 
     void loadMembers();
-  }, []);
+  }, [initialMembers]);
 
   useEffect(() => {
     // Giữ cache đồng bộ sau thêm/sửa/xóa để giảm refetch khi đổi tab.

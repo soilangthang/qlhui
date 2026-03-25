@@ -56,9 +56,9 @@ function parseNgayMoLocal(value: string) {
   return date;
 }
 
-export default function DayHuiPanel() {
+export default function DayHuiPanel({ initialLines = [] }: { initialLines?: DayHui[] }) {
   const router = useRouter();
-  const [lines, setLines] = useState<DayHui[]>([]);
+  const [lines, setLines] = useState<DayHui[]>(initialLines);
   const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
   const [soChan, setSoChan] = useState("");
@@ -128,6 +128,11 @@ export default function DayHuiPanel() {
         setLines(cached);
         return;
       }
+      if (initialLines.length > 0) {
+        setLines(initialLines);
+        setClientCache("day-hui:lines", initialLines, 60_000);
+        return;
+      }
       setLoading(true);
       setError("");
       try {
@@ -166,7 +171,7 @@ export default function DayHuiPanel() {
     }
 
     void loadLines();
-  }, []);
+  }, [initialLines]);
 
   useEffect(() => {
     // Đồng bộ cache cục bộ sau mọi thao tác tạo/sửa/xóa để quay lại tab không bị dữ liệu cũ.
