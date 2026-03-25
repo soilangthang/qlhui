@@ -16,38 +16,39 @@ export default async function ThuTienChiTietPage({
 
   const userId = await assertChuHuiUserId();
 
-  const opening = await prisma.huiOpening.findFirst({
-    where: { id: openingId, huiLine: { userId } },
-    select: {
-      kyThu: true,
-      ngayKhui: true,
-      bidAmount: true,
-      grossPayout: true,
-      finalPayout: true,
-      contributors: true,
-      contributionPerSlot: true,
-      winnerSlots: true,
-      winnerName: true,
-      winnerPhone: true,
-      note: true,
-      huiLine: {
-        select: {
-          id: true,
-          name: true,
-          soChan: true,
-          mucHuiThang: true,
-          tienCo: true,
-          chuKy: true,
-          ngayMo: true,
+  const [opening, panelData] = await Promise.all([
+    prisma.huiOpening.findFirst({
+      where: { id: openingId, huiLine: { userId } },
+      select: {
+        kyThu: true,
+        ngayKhui: true,
+        bidAmount: true,
+        grossPayout: true,
+        finalPayout: true,
+        contributors: true,
+        contributionPerSlot: true,
+        winnerSlots: true,
+        winnerName: true,
+        winnerPhone: true,
+        note: true,
+        huiLine: {
+          select: {
+            id: true,
+            name: true,
+            soChan: true,
+            mucHuiThang: true,
+            tienCo: true,
+            chuKy: true,
+            ngayMo: true,
+          },
         },
       },
-    },
-  });
+    }),
+    loadThuTienChiTietPanelData(userId, { embedReceiptImages: false }),
+  ]);
   if (!opening) notFound();
 
-  const { members, rows, receiptSettingForClient } = await loadThuTienChiTietPanelData(userId, {
-    embedReceiptImages: false,
-  });
+  const { members, rows, receiptSettingForClient } = panelData;
   const receiptSetting = receiptSettingForClient ?? {
     huiName: "Hụi mini",
     ownerName: "Chủ hụi",

@@ -25,6 +25,7 @@ import {
   safePdfFileBase,
   sharePdfFile,
 } from "@/lib/receipt-pdf";
+import { BankQrImage } from "@/components/bank-qr-image";
 import PhieuGiaoHuiSection, { type PhieuGiaoSlipPayload } from "@/components/phieu-giao-hui-block";
 import { useDeferredReceiptImages } from "@/components/use-deferred-receipt-images";
 
@@ -165,8 +166,6 @@ export default function ThuTienChiTietPanel({
   const qrValue = `${receipt.bankName || "BANK"}|${receipt.bankAccount || "000000"}|${
     receipt.accountName || receipt.ownerName
   }`;
-  const autoQrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrValue)}`;
-  const qrUrl = receipt.qrImageDataUrl?.trim() || receipt.qrImageUrl?.trim() || autoQrUrl;
   const ownerPhone = receipt.phone?.trim() || "Chưa cập nhật";
   const ownerAddress = receipt.address?.trim() || "Chưa cập nhật";
   const ownerBankAccount = receipt.bankAccount?.trim() || "Chưa cập nhật";
@@ -593,11 +592,13 @@ export default function ThuTienChiTietPanel({
         </div>
         <div className="bg-white p-4 text-center print:p-1">
           <p className="text-sm font-semibold text-slate-700 print:text-[9px]">Quét mã thanh toán</p>
-          <img
-            src={qrUrl}
+          <BankQrImage
+            qrValue={qrValue}
+            sizePx={210}
+            qrImageDataUrl={receipt.qrImageDataUrl}
+            qrImageUrl={receipt.qrImageUrl}
             alt="QR thanh toán"
-            crossOrigin={qrUrl.startsWith("data:") ? undefined : "anonymous"}
-            className="mx-auto mt-2 h-[210px] w-[210px] rounded-lg border border-slate-300 bg-white p-2 print:mt-1 print:h-[92px] print:w-[92px] print:p-0.5"
+            className="mx-auto mt-2 h-[210px] w-[210px] rounded-lg border border-slate-300 bg-white p-2 object-contain print:mt-1 print:h-[92px] print:w-[92px] print:p-0.5"
           />
           <p className="mt-2 text-sm font-semibold text-slate-800 print:mt-0.5 print:text-[9px] print:leading-tight">
             {receipt.accountName || receipt.ownerName}

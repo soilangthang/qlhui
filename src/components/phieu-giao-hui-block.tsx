@@ -2,6 +2,7 @@
 
 import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { BankQrImage } from "@/components/bank-qr-image";
 import { hoiTienDaTruCoTheoNhieuChan } from "@/lib/hui-member-line-metrics";
 import {
   chuKyLabelVi,
@@ -135,9 +136,6 @@ const PhieuGiaoHuiBlock = forwardRef<
   const chuTk = (receiptSetting.accountName || receiptSetting.ownerName || "—").trim();
 
   const qrValue = `${receiptSetting.bankName || "BANK"}|${receiptSetting.bankAccount || ""}|${chuTk}`;
-  const autoQrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(qrValue)}`;
-  const qrUrl =
-    receiptSetting.qrImageDataUrl?.trim() || receiptSetting.qrImageUrl?.trim() || autoQrUrl;
   const logoSrc = receiptSetting.logoImageDataUrl?.trim() || "/app-logo.png";
 
   return (
@@ -310,11 +308,13 @@ const PhieuGiaoHuiBlock = forwardRef<
         </div>
         <div className="flex flex-col items-center justify-start border-t border-slate-200 pt-4 md:border-t-0 md:border-l md:pl-4 md:pt-0 print:pt-0">
           <p className="text-xs font-semibold text-slate-600 print:text-[8px]">QR thanh toán</p>
-          <img
-            src={qrUrl}
+          <BankQrImage
+            qrValue={qrValue}
+            sizePx={160}
+            qrImageDataUrl={receiptSetting.qrImageDataUrl}
+            qrImageUrl={receiptSetting.qrImageUrl}
+            className="mt-1 h-24 w-24 rounded border border-slate-200 bg-white p-1 object-contain print:h-20 print:w-20"
             alt=""
-            crossOrigin={qrUrl.startsWith("data:") ? undefined : "anonymous"}
-            className="mt-1 h-24 w-24 rounded border border-slate-200 bg-white p-1 print:h-20 print:w-20"
           />
         </div>
       </div>
