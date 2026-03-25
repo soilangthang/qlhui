@@ -4,7 +4,7 @@ type CacheEntry<T> = {
 };
 
 const mem = new Map<string, CacheEntry<unknown>>();
-const MIN_TTL_MS = 60_000;
+const MIN_TTL_MS = 180_000;
 
 export function getClientCache<T>(key: string): T | null {
   const cur = mem.get(key);

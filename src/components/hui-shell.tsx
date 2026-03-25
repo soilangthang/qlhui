@@ -2,12 +2,13 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import LogoutButton from "@/components/logout-button";
 import MobileBottomNav from "@/components/mobile-bottom-nav";
 import { CHU_HUI_TRIAL_DAYS } from "@/lib/chu-hui-trial";
+import { getClientCache, setClientCache } from "@/lib/client-query-cache";
 
 type UserProfile = { name: string; phone: string; rule: string };
 
@@ -47,6 +48,7 @@ const menus = [
 
 export default function HuiShell({ children }: Readonly<{ children: React.ReactNode }>) {
   const pathname = usePathname();
+  const router = useRouter();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [access, setAccess] = useState<MeAccess | null>(null);
   /** Tăng định kỳ để đếm ngày dùng thử cập nhật (qua ngày / đổi tab). */
@@ -55,11 +57,20 @@ export default function HuiShell({ children }: Readonly<{ children: React.ReactN
   useEffect(() => {
     async function loadProfile() {
       try {
+        const cached = getClientCache<{ user: UserProfile | null; access: MeAccess | null }>("auth:me");
+        if (cached) {
+          setUser(cached.user);
+          setAccess(cached.access);
+          return;
+        }
         const res = await fetch("/api/auth/me");
         if (!res.ok) return;
         const data = await res.json();
-        setUser(data.user ?? null);
-        setAccess((data.access as MeAccess | undefined) ?? null);
+        const nextUser = (data.user as UserProfile | undefined) ?? null;
+        const nextAccess = (data.access as MeAccess | undefined) ?? null;
+        setUser(nextUser);
+        setAccess(nextAccess);
+        setClientCache("auth:me", { user: nextUser, access: nextAccess }, 300_000);
       } catch {
         setUser(null);
         setAccess(null);
@@ -67,6 +78,11 @@ export default function HuiShell({ children }: Readonly<{ children: React.ReactN
     }
     void loadProfile();
   }, []);
+
+  useEffect(() => {
+    const navTargets = menus.map((m) => m.href);
+    for (const href of navTargets) router.prefetch(href);
+  }, [router]);
 
   useEffect(() => {
     const id = setInterval(() => setTrialTick((n) => n + 1), 60_000);
@@ -189,7 +205,7 @@ export default function HuiShell({ children }: Readonly<{ children: React.ReactN
         <section className="min-h-[calc(100vh-8rem)] min-w-0 max-w-full print:min-h-0 print:h-auto">{children}</section>
       </section>
       </div>
-      <MobileBottomNav key={pathname} pathname={pathname} />
+      <MobileBottomNav pathname={pathname} />
     </main>
   );
 }

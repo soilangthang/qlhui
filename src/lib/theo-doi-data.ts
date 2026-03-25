@@ -225,8 +225,8 @@ const loadTheoDoiDataCached = unstable_cache(
   return out;
   },
   ["theo-doi-data-v1"],
-  // TTL ngắn để tăng tốc tab switch, dữ liệu vẫn gần realtime.
-  { revalidate: 10, tags: ["theo-doi-data"] },
+  // Tăng TTL để giảm tải truy vấn khi chuyển tab liên tục (đã có revalidateTag khi mutate).
+  { revalidate: 60, tags: ["theo-doi-data"] },
 );
 
 export async function loadTheoDoiData(userId: string): Promise<TheoDoiLinePayload[]> {

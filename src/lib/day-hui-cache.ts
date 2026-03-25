@@ -3,7 +3,7 @@ type CachedLines = {
   lines: unknown[];
 };
 
-const TTL_MS = 10_000;
+const TTL_MS = 60_000;
 const byUserId = new Map<string, CachedLines>();
 
 export function getDayHuiLinesCache(userId: string): unknown[] | null {

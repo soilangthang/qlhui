@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getClientCache, setClientCache } from "@/lib/client-query-cache";
+import { deleteClientCacheByPrefix, getClientCache, setClientCache } from "@/lib/client-query-cache";
 
 type DayHui = {
   id: string;
@@ -342,6 +342,7 @@ export default function DayHuiPanel({ initialLines = [] }: { initialLines?: DayH
           },
         ]);
       }
+      deleteClientCacheByPrefix("chi-tiet-hui-vien:");
 
       setName("");
       setSoChan("");
@@ -394,6 +395,7 @@ export default function DayHuiPanel({ initialLines = [] }: { initialLines?: DayH
         return;
       }
       setLines((prev) => prev.filter((line) => line.id !== id));
+      deleteClientCacheByPrefix("chi-tiet-hui-vien:");
     } catch {
       setError("Không thể kết nối máy chủ");
     } finally {
@@ -489,6 +491,7 @@ export default function DayHuiPanel({ initialLines = [] }: { initialLines?: DayH
         setChanSelectedMemberId(firstAvailable?.id ?? "");
       }
       setChanSlotCount("");
+      deleteClientCacheByPrefix("chi-tiet-hui-vien:");
     } catch {
       setError("Không thể kết nối máy chủ");
     } finally {
@@ -532,6 +535,7 @@ export default function DayHuiPanel({ initialLines = [] }: { initialLines?: DayH
         ),
       );
       await refreshLineLegs(lineId);
+      deleteClientCacheByPrefix("chi-tiet-hui-vien:");
     } catch {
       setError("Không thể kết nối máy chủ");
     } finally {
@@ -553,6 +557,7 @@ export default function DayHuiPanel({ initialLines = [] }: { initialLines?: DayH
         ),
       );
       await refreshLineLegs(lineId);
+      deleteClientCacheByPrefix("chi-tiet-hui-vien:");
     } catch {
       setError("Không thể kết nối máy chủ");
     } finally {

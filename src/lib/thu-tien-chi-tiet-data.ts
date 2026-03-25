@@ -100,8 +100,8 @@ const loadRowsAndMembersCached = unstable_cache(
     return { members, rows };
   },
   ["thu-tien-rows-members-v1"],
-  // TTL ngắn: giảm lag tab switch nhưng vẫn giữ dữ liệu gần realtime.
-  { revalidate: 15, tags: ["thu-tien-panel-data"] },
+  // TTL dài hơn để giảm truy vấn lặp khi người dùng chuyển tab qua lại.
+  { revalidate: 90, tags: ["thu-tien-panel-data", "chi-tiet-hui-vien-data"] },
 );
 
 const loadReceiptSettingForClientCached = unstable_cache(
@@ -152,7 +152,7 @@ const loadReceiptSettingForClientCached = unstable_cache(
     return { receiptSettingForClient };
   },
   ["thu-tien-receipt-setting-v1"],
-  { revalidate: 60, tags: ["thu-tien-panel-data"] },
+  { revalidate: 600, tags: ["thu-tien-panel-data", "chi-tiet-hui-vien-data"] },
 );
 
 export async function loadThuTienChiTietPanelData(userId: string, options: LoadThuTienOptions = {}) {

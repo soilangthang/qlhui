@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { deleteClientCacheByPrefix } from "@/lib/client-query-cache";
 
 type ThuTienRow = {
   id: string;
@@ -63,6 +64,7 @@ export default function ThuTienTable({ initialRows }: { initialRows: ThuTienRow[
       setRows((prev) =>
         prev.map((row) => (row.id === openingId ? { ...row, status: "DA_GIAO_TIEN" } : row)),
       );
+      deleteClientCacheByPrefix("chi-tiet-hui-vien:");
     } catch {
       setError("Không thể kết nối máy chủ");
     } finally {

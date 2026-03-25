@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import type { TheoDoiLinePayload } from "@/lib/theo-doi-data";
+import { deleteClientCacheByPrefix } from "@/lib/client-query-cache";
 
 function formatMoneyVN(n: number) {
   return `${n.toLocaleString("vi-VN")}đ`;
@@ -210,6 +211,7 @@ export default function TheoDoiPanel({ initialLines }: { initialLines: TheoDoiLi
           ),
         );
       }
+      deleteClientCacheByPrefix("chi-tiet-hui-vien:");
     } catch {
       setError("Không thể kết nối máy chủ");
       setLines((prev) =>

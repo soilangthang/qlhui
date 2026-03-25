@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getClientCache, setClientCache } from "@/lib/client-query-cache";
+import { deleteClientCacheByPrefix, getClientCache, setClientCache } from "@/lib/client-query-cache";
 
 type OwnerReceiptSetting = {
   huiName: string;
@@ -104,6 +104,7 @@ export default function CaiDatPanel() {
         return;
       }
       setClientCache("cai-dat:setting", { ...form }, 20_000);
+      deleteClientCacheByPrefix("chi-tiet-hui-vien:");
       setSuccess("Đã lưu cài đặt phiếu thu.");
     } catch {
       setError("Không thể kết nối máy chủ");
@@ -138,6 +139,7 @@ export default function CaiDatPanel() {
         setClientCache("cai-dat:setting", next, 20_000);
         return next;
       });
+      deleteClientCacheByPrefix("chi-tiet-hui-vien:");
       setQrFile(null);
       setSuccess("Đã upload ảnh QR vào database.");
     } catch {
@@ -174,6 +176,7 @@ export default function CaiDatPanel() {
         setClientCache("cai-dat:setting", next, 20_000);
         return next;
       });
+      deleteClientCacheByPrefix("chi-tiet-hui-vien:");
       setLogoFile(null);
       setSuccess("Đã upload logo — hiển thị trên phiếu tạm tính và phiếu giao.");
     } catch {
@@ -199,6 +202,7 @@ export default function CaiDatPanel() {
         setClientCache("cai-dat:setting", next, 20_000);
         return next;
       });
+      deleteClientCacheByPrefix("chi-tiet-hui-vien:");
       setSuccess("Đã xóa logo — phiếu dùng logo mặc định.");
     } catch {
       setError("Không thể kết nối máy chủ");

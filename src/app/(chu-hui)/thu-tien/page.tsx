@@ -48,7 +48,7 @@ const loadThuTienRowsCached = unstable_cache(
     return rows;
   },
   ["thu-tien-page-v1"],
-  { revalidate: 10, tags: ["thu-tien-panel-data"] },
+  { revalidate: 60, tags: ["thu-tien-panel-data"] },
 );
 
 export default async function ThuTienPage() {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { getClientCache, setClientCache } from "@/lib/client-query-cache";
+import { deleteClientCacheByPrefix, getClientCache, setClientCache } from "@/lib/client-query-cache";
 
 type HuiVien = {
   id: string;
@@ -131,6 +131,7 @@ export default function HuiVienPanel({ initialMembers = [] }: { initialMembers?:
         },
         ...prev,
       ]);
+      deleteClientCacheByPrefix("chi-tiet-hui-vien:");
 
       setName("");
       setPhone("");
@@ -191,6 +192,7 @@ export default function HuiVienPanel({ initialMembers = [] }: { initialMembers?:
             : m,
         ),
       );
+      deleteClientCacheByPrefix("chi-tiet-hui-vien:");
       cancelEdit();
     } catch {
       setError("Không thể kết nối máy chủ");
@@ -210,6 +212,7 @@ export default function HuiVienPanel({ initialMembers = [] }: { initialMembers?:
         return;
       }
       setMembers((prev) => prev.filter((m) => m.id !== id));
+      deleteClientCacheByPrefix("chi-tiet-hui-vien:");
       if (editingId === id) {
         cancelEdit();
       }

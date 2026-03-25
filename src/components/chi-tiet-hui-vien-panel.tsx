@@ -19,6 +19,7 @@ import {
   safePdfFileBase,
   sharePdfFile,
 } from "@/lib/receipt-pdf";
+import { getClientCache, setClientCache } from "@/lib/client-query-cache";
 
 function printScaleForLineCount(lineCount: number): number {
   const n = Math.max(1, lineCount);
@@ -63,31 +64,46 @@ export default function ChiTietHuiVienPanel({
   defaultMemberId: string;
   receiptSetting: ReceiptSetting;
 }) {
-  const [memberId, setMemberId] = useState(defaultMemberId || members[0]?.id || "");
+  const [memberId, setMemberId] = useState(() => {
+    const cachedId = getClientCache<string>("chi-tiet-hui-vien:selected-member-id");
+    if (cachedId && members.some((m) => m.id === cachedId)) return cachedId;
+    return defaultMemberId || members[0]?.id || "";
+  });
   const selectedMember = useMemo(
     () => members.find((item) => item.id === memberId) ?? null,
     [members, memberId],
   );
 
-  const displayRows = useMemo(() => rowsForMember(rows, selectedMember), [rows, selectedMember]);
+  const rowsVersion = useMemo(
+    () => rows.map((r) => `${r.lineId}:${r.latestKy ?? 0}:${r.latestDate ?? ""}:${r.memberSlots}`).join("|"),
+    [rows],
+  );
+  const derived = useMemo(() => {
+    if (!selectedMember) {
+      return { displayRows: [] as HuiLineDetailRow[], totals: { chan: 0, chet: 0, song: 0, amDuong: 0 } };
+    }
+    const cacheKey = `chi-tiet-hui-vien:derived:${selectedMember.id}:${rowsVersion}`;
+    const cached = getClientCache<{ displayRows: HuiLineDetailRow[]; totals: { chan: number; chet: number; song: number; amDuong: number } }>(cacheKey);
+    if (cached) return cached;
 
-  const totals = useMemo(() => {
+    const displayRows = rowsForMember(rows, selectedMember);
     let chan = 0;
     let chet = 0;
     let song = 0;
-    /** Cùng quy ước báo cáo: Dương = đóng − hốt; `realizedProfit` nội bộ = hốt − đóng. */
     let amDuong = 0;
     for (const row of displayRows) {
-      if (!selectedMember) continue;
-      const { deadSlots, liveSlots, realizedProfit: rProfit } =
-        computeMemberRealizedProfit(row, selectedMember);
+      const { deadSlots, liveSlots, realizedProfit: rProfit } = computeMemberRealizedProfit(row, selectedMember);
       chan += row.memberSlots;
       chet += deadSlots;
       song += liveSlots;
       amDuong -= rProfit;
     }
-    return { chan, chet, song, amDuong };
-  }, [displayRows, selectedMember]);
+    const next = { displayRows, totals: { chan, chet, song, amDuong } };
+    setClientCache(cacheKey, next, 180_000);
+    return next;
+  }, [rows, rowsVersion, selectedMember]);
+  const displayRows = derived.displayRows;
+  const totals = derived.totals;
 
   const printRootRef = useRef<HTMLDivElement>(null);
   const [pdfCapturing, setPdfCapturing] = useState(false);
@@ -100,6 +116,11 @@ export default function ChiTietHuiVienPanel({
     setPhoneLike(isPhoneLikeDevice());
     setCanShareFiles(canSharePdfFiles());
   }, []);
+
+  useEffect(() => {
+    if (!memberId) return;
+    setClientCache("chi-tiet-hui-vien:selected-member-id", memberId, 180_000);
+  }, [memberId]);
 
   const ownerPhone = receiptSetting.phone?.trim() || "Chưa cập nhật";
   const ownerAddress = receiptSetting.address?.trim() || "Chưa cập nhật";
