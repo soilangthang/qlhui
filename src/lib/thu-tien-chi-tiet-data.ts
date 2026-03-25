@@ -104,52 +104,56 @@ const loadRowsAndMembersCached = unstable_cache(
   { revalidate: 15, tags: ["thu-tien-panel-data"] },
 );
 
-async function loadReceiptSettingForClient(userId: string) {
-  const receiptSetting =
-    (await prisma.ownerReceiptSetting.findUnique({
-      where: { userId },
-      include: {
-        qrUpload: {
-          select: {
-            imageData: true,
-            mimeType: true,
+const loadReceiptSettingForClientCached = unstable_cache(
+  async (userId: string) => {
+    const receiptSetting =
+      (await prisma.ownerReceiptSetting.findUnique({
+        where: { userId },
+        include: {
+          qrUpload: {
+            select: {
+              imageData: true,
+              mimeType: true,
+            },
           },
         },
-      },
-    })) ??
-    ({
-      huiName: "Hụi mini",
-      ownerName: "Chủ hụi",
-      address: "",
-      phone: "",
-      bankAccount: "",
-      bankName: "",
-      accountName: "",
-      qrImageUrl: "",
-      phieuGhiChu: "",
-      qrUpload: null,
-    } as const);
+      })) ??
+      ({
+        huiName: "Hụi mini",
+        ownerName: "Chủ hụi",
+        address: "",
+        phone: "",
+        bankAccount: "",
+        bankName: "",
+        accountName: "",
+        qrImageUrl: "",
+        phieuGhiChu: "",
+        qrUpload: null,
+      } as const);
 
-  const logoImageDataUrl = await getOwnerReceiptLogoDataUrl(userId);
+    const logoImageDataUrl = await getOwnerReceiptLogoDataUrl(userId);
 
-  const receiptSettingForClient = {
-    huiName: receiptSetting.huiName,
-    ownerName: receiptSetting.ownerName,
-    address: receiptSetting.address,
-    phone: receiptSetting.phone,
-    bankAccount: receiptSetting.bankAccount,
-    bankName: receiptSetting.bankName,
-    accountName: receiptSetting.accountName,
-    qrImageUrl: receiptSetting.qrImageUrl,
-    qrImageDataUrl: receiptSetting.qrUpload
-      ? `data:${receiptSetting.qrUpload.mimeType};base64,${Buffer.from(receiptSetting.qrUpload.imageData).toString("base64")}`
-      : "",
-    logoImageDataUrl,
-    phieuGhiChu: receiptSetting.phieuGhiChu ?? "",
-  };
+    const receiptSettingForClient = {
+      huiName: receiptSetting.huiName,
+      ownerName: receiptSetting.ownerName,
+      address: receiptSetting.address,
+      phone: receiptSetting.phone,
+      bankAccount: receiptSetting.bankAccount,
+      bankName: receiptSetting.bankName,
+      accountName: receiptSetting.accountName,
+      qrImageUrl: receiptSetting.qrImageUrl,
+      qrImageDataUrl: receiptSetting.qrUpload
+        ? `data:${receiptSetting.qrUpload.mimeType};base64,${Buffer.from(receiptSetting.qrUpload.imageData).toString("base64")}`
+        : "",
+      logoImageDataUrl,
+      phieuGhiChu: receiptSetting.phieuGhiChu ?? "",
+    };
 
-  return { receiptSettingForClient };
-}
+    return { receiptSettingForClient };
+  },
+  ["thu-tien-receipt-setting-v1"],
+  { revalidate: 60, tags: ["thu-tien-panel-data"] },
+);
 
 export async function loadThuTienChiTietPanelData(userId: string, options: LoadThuTienOptions = {}) {
   const t0 = perfNowMs();
@@ -161,7 +165,7 @@ export async function loadThuTienChiTietPanelData(userId: string, options: LoadT
     return { members, rows };
   }
 
-  const settingBundle = await loadReceiptSettingForClient(userId);
+  const settingBundle = await loadReceiptSettingForClientCached(userId);
   logPerf("loadThuTienChiTietPanelData", t0, `userId=${userId} withSetting=true`);
   return { members, rows, receiptSettingForClient: settingBundle.receiptSettingForClient };
 }
