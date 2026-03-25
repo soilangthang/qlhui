@@ -29,7 +29,15 @@ export async function GET() {
         ? receiptImageBytesToDataUrl(setting.qrUpload.imageData, setting.qrUpload.mimeType)
         : "";
 
-    return NextResponse.json({ ok: true, logoImageDataUrl, qrImageDataUrl });
+    return NextResponse.json(
+      { ok: true, logoImageDataUrl, qrImageDataUrl },
+      {
+        headers: {
+          // Trình duyệt tái sử dụng response (cùng phiên) — giảm tải khi đổi tab qua lại.
+          "Cache-Control": "private, max-age=600, stale-while-revalidate=86400",
+        },
+      },
+    );
   } catch (error) {
     console.error("GET /api/cai-dat/receipt-images error:", error);
     return NextResponse.json({ message: "Lỗi hệ thống" }, { status: 500 });

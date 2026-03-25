@@ -3,6 +3,7 @@ import {
   rowPayInPayOut,
   type HuiLineDetailRow,
   type HuiMemberRef,
+  type HuiOpeningForMetrics,
 } from "@/lib/hui-member-line-metrics";
 import { memberTrackingKeyFromLeg, parseMemberIdFromNote } from "@/lib/member-tracking-key";
 import { unstable_cache } from "next/cache";
@@ -224,9 +225,9 @@ const loadTheoDoiDataCached = unstable_cache(
   logPerf("loadTheoDoiData", t0, `userId=${userId} lines=${out.length}`);
   return out;
   },
-  ["theo-doi-data-v1"],
-  // Tăng TTL để giảm tải truy vấn khi chuyển tab liên tục (đã có revalidateTag khi mutate).
-  { revalidate: 60, tags: ["theo-doi-data"] },
+  ["theo-doi-data-v2"],
+  // TTL dài hơn để tab Theo dõi phản hồi nhanh khi quay lại (mutate vẫn revalidateTag).
+  { revalidate: 180, tags: ["theo-doi-data"] },
 );
 
 export async function loadTheoDoiData(userId: string): Promise<TheoDoiLinePayload[]> {
