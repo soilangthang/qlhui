@@ -67,6 +67,10 @@ function hoChiMinhCalendarDayDiffDays(keyA: string, keyB: string): number {
  * Phiếu tạm thu: dây có kỳ khui mới nhất trùng **hôm nay (lịch VN)**,
  * hoặc **cùng số kỳ** với ít nhất một dây như vậy và ngày khui lệch tối đa ±7 ngày (lịch VN)
  * — để không thiếu dây do lệch ngày lưu DB / múi giờ.
+ *
+ * Nếu **không** có dây nào (trong danh sách đang xét) khui đúng ngày hôm nay (VN), vẫn lấy các dây
+ * có ngày khui mới nhất trong **±7 ngày lịch VN** quanh hôm nay — tránh phiếu trống sang ngày hôm sau
+ * khi hôm qua đã khui mà hôm nay chưa có kỳ mới / chưa ai khui.
  */
 export function filterRowsForPhieuTamThu<
   T extends { latestDate: string | null; latestKy: number | null },
@@ -76,6 +80,16 @@ export function filterRowsForPhieuTamThu<
   const kyToday = new Set(
     rowsToday.map((r) => r.latestKy).filter((k): k is number => k != null && k > 0),
   );
+
+  const withinSevenDaysOfToday = (r: T): boolean => {
+    const k = hoChiMinhCalendarKeyFromIso(r.latestDate);
+    if (!k) return false;
+    return Math.abs(hoChiMinhCalendarDayDiffDays(k, todayKey)) <= 7;
+  };
+
+  if (rowsToday.length === 0) {
+    return displayRows.filter(withinSevenDaysOfToday);
+  }
 
   return displayRows.filter((r) => {
     const k = hoChiMinhCalendarKeyFromIso(r.latestDate);

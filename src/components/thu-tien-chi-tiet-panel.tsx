@@ -506,8 +506,9 @@ export default function ThuTienChiTietPanel({
             ) : receiptRows.length === 0 ? (
               <tr>
                 <td colSpan={13} className="px-4 py-6 text-slate-500">
-                  Không có dây nào thuộc đợt phiếu tạm thu (hôm nay theo giờ Việt Nam, hoặc cùng kỳ với dây khui hôm
-                  nay và ngày khui lệch tối đa 7 ngày).
+                  Không có dây nào thuộc đợt phiếu tạm thu (khui hôm nay theo giờ Việt Nam; hoặc cùng kỳ với dây khui
+                  hôm nay và lệch ngày tối đa 7 ngày; nếu hôm nay chưa có khui thì lấy dây có kỳ mới nhất trong 7
+                  ngày lịch VN gần nhất).
                 </td>
               </tr>
             ) : (
