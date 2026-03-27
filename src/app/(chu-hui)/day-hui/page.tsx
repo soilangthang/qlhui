@@ -1,3 +1,5 @@
+import { unstable_cache } from "next/cache";
+
 import DayHuiPanel from "@/components/day-hui-panel";
 import { assertChuHuiUserId } from "@/lib/chu-hui-scope";
 import { prisma } from "@/lib/prisma";
@@ -9,28 +11,36 @@ function formatDateDisplay(date: Date) {
   return `${d}/${m}/${y}`;
 }
 
+const loadDayHuiPageDataCached = unstable_cache(
+  async (userId: string) => {
+    return prisma.huiLine.findMany({
+      where: { userId },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        name: true,
+        kind: true,
+        gopCycleDays: true,
+        fixedBid: true,
+        soChan: true,
+        mucHuiThang: true,
+        tienCo: true,
+        chuKy: true,
+        ngayMo: true,
+        status: true,
+        _count: {
+          select: { openings: true },
+        },
+      },
+    });
+  },
+  ["day-hui-page-data-v1"],
+  { revalidate: 120, tags: ["day-hui-page-data"] },
+);
+
 export default async function DayHuiPage() {
   const userId = await assertChuHuiUserId();
-  const lines = await prisma.huiLine.findMany({
-    where: { userId },
-    orderBy: { createdAt: "asc" },
-    select: {
-      id: true,
-      name: true,
-      kind: true,
-      gopCycleDays: true,
-      fixedBid: true,
-      soChan: true,
-      mucHuiThang: true,
-      tienCo: true,
-      chuKy: true,
-      ngayMo: true,
-      status: true,
-      _count: {
-        select: { openings: true },
-      },
-    },
-  });
+  const lines = await loadDayHuiPageDataCached(userId);
 
   return (
     <section>

@@ -3,15 +3,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  deadContributionPerCollectionVND,
   deadSlotsOnRowForMember,
   formatDateDisplay,
   formatMoneyVN,
-  futureDeadLegPayEstimate,
-  hoiTienDaTruCoTheoNhieuChan,
   isMemberWinnerOnRow,
   khuiTrungKyGroupKey,
+  liveContributionPerCollectionVND,
   profitToneClass,
+  receiptPayoutVND,
   rowsForMember,
+  shouldSkipPayInOnReceipt,
+  shouldOffsetPayInOnReceipt,
   type HuiLineDetailRow,
   type HuiMemberRef,
 } from "@/lib/hui-member-line-metrics";
@@ -39,6 +42,13 @@ function printScaleForLineCount(lineCount: number): number {
   if (n >= 16) scale *= 0.92;
   if (n >= 20) scale *= 0.94;
   return Math.min(0.9, Math.max(0.28, scale));
+}
+
+function futureDeadPayForReceipt(row: HuiLineDetailRow, deadSlots: number) {
+  if (deadSlots <= 0 || row.latestKy == null || row.latestKy <= 0) return 0;
+  const remainingKy = Math.max(0, row.totalCycles - row.latestKy);
+  if (remainingKy <= 0) return 0;
+  return deadSlots * row.lineAmount * remainingKy;
 }
 
 type ReceiptSetting = {
@@ -98,39 +108,27 @@ export default function ThuTienChiTietPanel({
     const liveSlots = Math.max(0, totalSlots - deadSlots);
     // Dây đã hốt kỳ đang tính: không cộng tiền đóng (trừ ngang). Còn lại: chân sống × góp kỳ + chân chết × mức dây.
     const totalPayIn = receiptRows.reduce((acc, row) => {
-      if (isMemberWinnerOnRow(row, selectedMember)) return acc;
-      const cycleFactor = Math.max(1, row.contributionDays ?? 1);
-      const contribution = row.latestContributionPerSlot || row.lineAmount * cycleFactor;
+      if (shouldSkipPayInOnReceipt(row, selectedMember)) return acc;
       const dead = deadSlotsOnRowForMember(row, selectedMember);
       const live = Math.max(0, row.memberSlots - dead);
-      return acc + contribution * live + dead * row.lineAmount * cycleFactor;
+      return acc + liveContributionPerCollectionVND(row) * live + deadContributionPerCollectionVND(row) * dead;
     }, 0);
-    const totalPayOut = receiptRows.reduce((acc, row) => {
-      const cycleFactor = Math.max(1, row.contributionDays ?? 1);
-      const contribution = row.latestContributionPerSlot || row.lineAmount * cycleFactor;
-      const isWinner = isMemberWinnerOnRow(row, selectedMember);
-      return acc +
-        (isWinner
-          ? hoiTienDaTruCoTheoNhieuChan(row.totalCycles, row.memberSlots, contribution, row.lineTienCo)
-          : 0);
-    }, 0);
+    const totalPayOut = receiptRows.reduce((acc, row) => acc + receiptPayoutVND(row, selectedMember), 0);
     const totalFutureDeadPay = receiptRows.reduce(
-      (acc, row) => acc + futureDeadLegPayEstimate(row, selectedMember),
+      (acc, row) => acc + futureDeadPayForReceipt(row, deadSlotsOnRowForMember(row, selectedMember)),
       0,
     );
 
     const bySameKy = new Map<string, { payIn: number; payOut: number }>();
     for (const row of receiptRows) {
       const key = khuiTrungKyGroupKey(row);
-      const isWinner = isMemberWinnerOnRow(row, selectedMember);
-      const cycleFactor = Math.max(1, row.contributionDays ?? 1);
-      const contribution = row.latestContributionPerSlot || row.lineAmount * cycleFactor;
+      const offsetPayIn = shouldOffsetPayInOnReceipt(row, selectedMember);
       const dead = deadSlotsOnRowForMember(row, selectedMember);
       const live = Math.max(0, row.memberSlots - dead);
-      const payIn = isWinner ? 0 : contribution * live + dead * row.lineAmount * cycleFactor;
-      const payOut = isWinner
-        ? hoiTienDaTruCoTheoNhieuChan(row.totalCycles, row.memberSlots, contribution, row.lineTienCo)
-        : 0;
+      const payIn = shouldSkipPayInOnReceipt(row, selectedMember)
+        ? 0
+        : liveContributionPerCollectionVND(row) * live + deadContributionPerCollectionVND(row) * dead;
+      const payOut = receiptPayoutVND(row, selectedMember);
       const bucket = bySameKy.get(key) ?? { payIn: 0, payOut: 0 };
       bucket.payIn += payIn;
       bucket.payOut += payOut;
@@ -424,7 +422,7 @@ export default function ThuTienChiTietPanel({
               <th className="border-r border-slate-300 px-2 py-2 text-center sm:px-3">Sống</th>
               <th
                 className="border-r border-slate-300 px-2 py-2 text-center sm:px-3"
-                title="Tổng tiền đóng kỳ đang tính: chân sống × mức góp kỳ + chân chết × mức dây. Dây đã hốt kỳ này trừ ngang với chủ nên không cộng."
+                title="Tổng tiền đóng đang tính. Dây thường: tính theo kỳ. Dây góp: chân sống = mức góp kỳ chia số ngày kỳ, chân chết = mức dây chia số ngày kỳ. Dây đã hốt kỳ này trừ ngang với chủ nên không cộng."
               >
                 Hụi sống (đã đóng)
               </th>
@@ -474,6 +472,7 @@ export default function ThuTienChiTietPanel({
             <tr className="border-b border-slate-300">
               <th className="w-12 border-r border-slate-300 px-2 py-3 text-center print:w-6">#</th>
               <th className="border-r border-slate-300 px-2 py-3 text-center">Dây hụi</th>
+              <th className="w-20 border-r border-slate-300 px-2 py-3 text-center print:w-10">Loại</th>
               <th className="border-r border-slate-300 px-2 py-3 text-center">Số tiền</th>
               <th className="w-20 border-r border-slate-300 px-2 py-3 text-center print:w-14">Kỳ hụi</th>
               <th className="w-24 border-r border-slate-300 px-2 py-3 text-center print:w-14">Tổng số kỳ</th>
@@ -483,9 +482,15 @@ export default function ThuTienChiTietPanel({
               <th className="w-16 border-r border-slate-300 px-2 py-3 text-center print:w-8">Sống</th>
               <th
                 className="border-r border-slate-300 px-2 py-3 text-center"
-                title="Kỳ đang tính: chân sống × mức góp kỳ + chân chết × mức dây. Dây đã hốt kỳ này: trừ ngang với chủ, không ghi số đóng."
+                title="Số tiền đóng đang tính. Dây thường: tính theo kỳ. Dây góp: chân sống = mức góp kỳ chia số ngày kỳ, chân chết = mức dây chia số ngày kỳ. Dây đã hốt kỳ này trừ ngang với chủ nên không ghi số đóng."
               >
                 Tiền đóng
+              </th>
+              <th
+                className="border-r border-slate-300 px-2 py-3 text-center"
+                title="Với dây góp: tổng tiền đã được đánh dấu thu đủ ở đợt hiện tại."
+              >
+                Đã thu góp
               </th>
               <th
                 className="border-r border-slate-300 px-2 py-3 text-center"
@@ -502,13 +507,13 @@ export default function ThuTienChiTietPanel({
           <tbody className="divide-y divide-slate-300 bg-white text-center text-[15px] font-medium text-slate-700 print:text-[9px]">
             {displayRows.length === 0 ? (
               <tr>
-                <td colSpan={13} className="px-4 py-6 text-slate-500">
+                <td colSpan={15} className="px-4 py-6 text-slate-500">
                   Hụi viên này chưa tham gia dây hụi nào.
                 </td>
               </tr>
             ) : receiptRows.length === 0 ? (
               <tr>
-                <td colSpan={13} className="px-4 py-6 text-slate-500">
+                <td colSpan={15} className="px-4 py-6 text-slate-500">
                   Không có dây nào thuộc đợt phiếu tạm thu (khui hôm nay theo giờ Việt Nam; hoặc cùng kỳ với dây khui
                   hôm nay và lệch ngày tối đa 7 ngày; nếu hôm nay chưa có khui thì lấy dây có kỳ mới nhất trong 7
                   ngày lịch VN gần nhất).
@@ -517,21 +522,30 @@ export default function ThuTienChiTietPanel({
             ) : (
               receiptRows.map((row, idx) => {
                 const isWinner = isMemberWinnerOnRow(row, selectedMember);
+                const offsetPayIn = shouldOffsetPayInOnReceipt(row, selectedMember);
+                const skipPayIn = shouldSkipPayInOnReceipt(row, selectedMember);
                 const deadSlots = deadSlotsOnRowForMember(row, selectedMember);
                 const liveSlots = Math.max(0, row.memberSlots - deadSlots);
-                const cycleFactor = Math.max(1, row.contributionDays ?? 1);
-                const contribution = row.latestContributionPerSlot || row.lineAmount * cycleFactor;
-                const payIn = isWinner
+                const payIn = skipPayIn
                   ? 0
-                  : contribution * liveSlots + deadSlots * row.lineAmount * cycleFactor;
-                const payOut = isWinner
-                  ? hoiTienDaTruCoTheoNhieuChan(row.totalCycles, row.memberSlots, contribution, row.lineTienCo)
-                  : 0;
+                  : liveContributionPerCollectionVND(row) * liveSlots + deadContributionPerCollectionVND(row) * deadSlots;
+                const payOut = receiptPayoutVND(row, selectedMember);
                 const rowNetProfit = payOut - payIn;
                 return (
                   <tr key={`${row.lineId}-${idx}`}>
                     <td className="border-r border-slate-300 px-2 py-3">{idx + 1}</td>
                     <td className="border-r border-slate-300 px-2 py-3 text-left">{row.lineName}</td>
+                    <td className="border-r border-slate-300 px-2 py-3">
+                      {row.lineKind === "GOP" ? (
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
+                          Góp
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
+                          Thường
+                        </span>
+                      )}
+                    </td>
                     <td className="border-r border-slate-300 px-2 py-3">{formatMoneyVN(row.lineAmount)}</td>
                     <td className="border-r border-slate-300 px-2 py-3">{row.latestKy ? `Kỳ ${row.latestKy}` : "-"}</td>
                     <td className="border-r border-slate-300 px-2 py-3">{row.totalCycles}</td>
@@ -540,19 +554,28 @@ export default function ThuTienChiTietPanel({
                     <td className="border-r border-slate-300 px-2 py-3">{deadSlots}</td>
                     <td className="border-r border-slate-300 px-2 py-3">{liveSlots}</td>
                     <td className="border-r border-slate-300 px-2 py-3 text-emerald-800">
-                      {isWinner ? (
+                      {offsetPayIn ? (
                         <span className="font-semibold" title="Bù trừ với tiền chủ hụi giao, không thu đóng riêng">
                           Trừ ngang
+                        </span>
+                      ) : skipPayIn ? (
+                        <span className="font-semibold" title="Dây góp đang chờ giao tiền ở kỳ sau nên chưa tính tiền đóng trên phiếu tạm thu">
+                          0đ
                         </span>
                       ) : (
                         formatMoneyVN(payIn)
                       )}
                     </td>
+                    <td className="border-r border-slate-300 px-2 py-3 font-semibold text-sky-700">
+                      {row.lineKind === "GOP" ? formatMoneyVN(row.latestMarkedCollectedAmount ?? 0) : "-"}
+                    </td>
                     <td className="border-r border-slate-300 px-2 py-3">{formatMoneyVN(payOut)}</td>
                     <td className={`border-r border-slate-300 px-2 py-3 font-semibold ${profitToneClass(rowNetProfit)}`}>
                       {formatMoneyVN(rowNetProfit)}
                     </td>
-                    <td className="px-2 py-3">{isWinner ? "Đã hốt" : "-"}</td>
+                    <td className="px-2 py-3">
+                      {offsetPayIn ? "Đã hốt" : isWinner && payOut === 0 ? "Chờ giao kỳ sau" : "-"}
+                    </td>
                   </tr>
                 );
               })
@@ -571,8 +594,9 @@ export default function ThuTienChiTietPanel({
             <span className="font-semibold">đã hốt kỳ đang tính</span> của dây đó không nộp tiền đóng riêng kỳ
             này — khoản được <span className="font-semibold">bù trừ với tiền chủ hụi giao</span>, nên không hiện số
             đồng như các dây vẫn phải đóng. Các dây khác:{" "}
-            <span className="font-semibold">chân sống</span> theo mức góp kỳ,{" "}
-            <span className="font-semibold">chân chết</span> (đã hốt trước đó) theo mức dây mỗi kỳ.
+            <span className="font-semibold">chân sống</span> theo mức góp đang thu. Với dây góp, mức góp này là{" "}
+            <span className="font-semibold">tiền cả kỳ chia cho số ngày của kỳ</span>.{" "}
+            <span className="font-semibold">chân chết</span> (đã hốt trước đó) cũng tính theo mức thu tương ứng của ngày đang thu.
           </p>
         </div>
         <p

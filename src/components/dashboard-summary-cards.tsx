@@ -40,7 +40,7 @@ export function DashboardStripeFrame({
   );
   if (href) {
     return (
-      <Link href={href} className={shell}>
+      <Link href={href} prefetch={true} className={shell}>
         {body}
       </Link>
     );

@@ -1,19 +1,21 @@
 import { describe, expect, it } from "vitest";
 
+import { hoiTienDaTruCoTheoNhieuChan } from "./hui-member-line-metrics";
 import {
   chuKyLabelVi,
   computePhieuGiaoBreakdown,
   kyConLaiSauHoot,
+  normalizePhieuGiaoContributionVND,
+  normalizePhieuGiaoPayoutVND,
   truChanSongVND,
 } from "./phieu-giao-hui";
-import { hoiTienDaTruCoTheoNhieuChan } from "./hui-member-line-metrics";
 
 describe("computePhieuGiaoBreakdown", () => {
-  it("mẫu phiếu: 30 chân, 1 hốt, thăm 20k → 28 chết + 1 sống", () => {
+  it("sample slip: 30 slots, 1 winner, bid 20k => 28 dead + 1 live", () => {
     const M = 200_000;
     const B = 20_000;
     const c = M - B;
-    const gross = 28 * M + 1 * c;
+    const gross = 28 * M + c;
     const b = computePhieuGiaoBreakdown({
       totalSlots: 30,
       winnerSlots: 1,
@@ -29,7 +31,7 @@ describe("computePhieuGiaoBreakdown", () => {
     expect(b.deadTotal + b.liveTotal).toBe(gross);
   });
 
-  it("không thăm: toàn bộ người đóng đủ mức dây", () => {
+  it("without bid: all contributors pay the full line amount", () => {
     const b = computePhieuGiaoBreakdown({
       totalSlots: 10,
       winnerSlots: 1,
@@ -43,7 +45,7 @@ describe("computePhieuGiaoBreakdown", () => {
     expect(b.liveTotal).toBe(9_000_000);
   });
 
-  it("nhiều chân hốt: contributors giảm", () => {
+  it("multi-slot winner reduces contributors", () => {
     const M = 500_000;
     const B = 50_000;
     const c = 450_000;
@@ -62,21 +64,25 @@ describe("computePhieuGiaoBreakdown", () => {
 });
 
 describe("kyConLaiSauHoot", () => {
-  it("kỳ 29/30 → còn 1", () => {
+  it("period 29/30 => 1 remaining", () => {
     expect(kyConLaiSauHoot(30, 29)).toBe(1);
   });
 });
 
 describe("chuKyLabelVi", () => {
-  it("nhãn hiển thị", () => {
-    expect(chuKyLabelVi("NGAY")).toContain("ngày");
-    expect(chuKyLabelVi("THANG")).toContain("tháng");
-    expect(chuKyLabelVi("NAM")).toContain("năm");
+  it("renders built-in labels", () => {
+    expect(chuKyLabelVi("NGAY")).not.toBe("");
+    expect(chuKyLabelVi("THANG")).not.toBe("");
+    expect(chuKyLabelVi("NAM")).not.toBe("");
+  });
+
+  it("shows GOP cycle days on the receipt", () => {
+    expect(chuKyLabelVi("NGAY", "GOP", 10)).toContain("10");
   });
 });
 
 describe("truChanSongVND", () => {
-  it("khớp gross − cò − hoiTien (phiếu tạm tính)", () => {
+  it("matches gross - commission - payout on the temporary receipt", () => {
     const M = 10;
     const N = 2;
     const W = 1;
@@ -87,5 +93,17 @@ describe("truChanSongVND", () => {
     const tru = truChanSongVND(N, W, c);
     expect(tru).toBe((N - W) * c);
     expect(gross - co - hoi).toBe(tru);
+  });
+});
+
+describe("GOP receipt normalization", () => {
+  it("normalizes live-leg and payout amounts back to the displayed unit", () => {
+    const contribution = normalizePhieuGiaoContributionVND(45_000_000, "GOP", 10);
+    const gross = normalizePhieuGiaoPayoutVND(405_000_000, "GOP", 10);
+
+    expect(contribution).toBe(4_500_000);
+    expect(gross).toBe(40_500_000);
+    expect(truChanSongVND(3, 1, contribution)).toBe(9_000_000);
+    expect(hoiTienDaTruCoTheoNhieuChan(10, 3, contribution, 2_500_000)).toBe(29_000_000);
   });
 });

@@ -66,6 +66,7 @@ export async function PUT(
       },
     });
 
+    revalidateTag("hui-vien-page-data", "max");
     revalidateTag("thu-tien-panel-data", "max");
     revalidateTag("theo-doi-data", "max");
     return NextResponse.json({ ok: true, member: updated });
@@ -92,6 +93,7 @@ export async function DELETE(
     if (del.count === 0) {
       return NextResponse.json({ message: "Không tìm thấy hụi viên" }, { status: 404 });
     }
+    revalidateTag("hui-vien-page-data", "max");
     revalidateTag("thu-tien-panel-data", "max");
     revalidateTag("theo-doi-data", "max");
     return NextResponse.json({ ok: true });

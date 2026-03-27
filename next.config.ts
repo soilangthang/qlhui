@@ -11,6 +11,12 @@ const nextConfig: NextConfig = {
    * Trên Vercel, giữ mặc định `.next` để Vercel tìm đúng `routes-manifest.json`.
    */
   ...(process.env.VERCEL ? {} : { distDir: ".next-prod" }),
+  experimental: {
+    staleTimes: {
+      dynamic: 30,
+      static: 300,
+    },
+  },
   /** Tránh bundle Prisma vào .next — nếu không, Turbopack có thể giữ client cũ (thiếu model mới sau generate). */
   serverExternalPackages: ["@prisma/client", "prisma"],
   turbopack: {

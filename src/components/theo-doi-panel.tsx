@@ -463,7 +463,7 @@ export default function TheoDoiPanel({ initialLines }: { initialLines: TheoDoiLi
                         <th className="border-r border-slate-300 px-1.5 py-2 font-bold">Chân (STT)</th>
                         <th
                           className="w-28 border-r border-slate-300 px-1.5 py-2 font-bold"
-                          title="Tiền đóng kỳ hiện tại: chân sống × mức góp kỳ + chân chết × mức dây (người hốt kỳ này: trừ ngang)"
+                          title="Số tiền đang thu hiện tại. Dây thường: tính theo kỳ. Dây góp: chân sống = mức góp kỳ chia số ngày kỳ, chân chết = mức dây chia số ngày kỳ. Người hốt kỳ này: trừ ngang."
                         >
                           Số tiền
                         </th>

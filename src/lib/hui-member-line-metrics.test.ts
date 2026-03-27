@@ -4,14 +4,23 @@ import type { HuiLineDetailRow, HuiMemberRef } from "./hui-member-line-metrics";
 import {
   balanceAmDuong,
   computeMemberRealizedProfit,
+  deadContributionPerCollectionVND,
   deadSlotsOnRowForMember,
   futureDeadLegPayEstimate,
   hoiTienDaTruCoTheoNhieuChan,
+  liveContributionPerCollectionVND,
+  liveContributionPerCycleVND,
+  latestCollectedTargetVND,
+  latestDeliveryAmountVND,
   participantMatchesMember,
   profitHienTai,
   profitManDay,
+  receiptPayoutOpeningForMember,
+  receiptPayoutVND,
   rowPayInPayOut,
   rowsForMember,
+  shouldSkipPayInOnReceipt,
+  shouldOffsetPayInOnReceipt,
 } from "./hui-member-line-metrics";
 
 const memberAn: HuiMemberRef = { id: "m-an", name: "An", phone: "0909123456" };
@@ -53,6 +62,131 @@ describe("hoiTienDaTruCoTheoNhieuChan", () => {
 
   it("N >= M → gross 0, chỉ trừ cò về 0", () => {
     expect(hoiTienDaTruCoTheoNhieuChan(10, 12, 900_000, 50_000)).toBe(0);
+  });
+});
+
+describe("GOP current collection amounts", () => {
+  it("normalizes cycle and daily amounts for collection screens", () => {
+    const r = row({
+      lineAmount: 5_000_000,
+      contributionDays: 10,
+      latestBidAmount: 500_000,
+      latestContributionPerSlot: 45_000_000,
+      participants: [{ legStt: 1, memberId: memberAn.id, memberName: "An", memberPhone: "0909123456" }],
+    });
+
+    expect(liveContributionPerCycleVND(r)).toBe(4_500_000);
+    expect(liveContributionPerCollectionVND(r)).toBe(450_000);
+    expect(deadContributionPerCollectionVND(r)).toBe(500_000);
+  });
+});
+
+describe("GOP receipt payout timing", () => {
+  it("does not show current-cycle payout on the same GOP opening day", () => {
+    const [withSlots] = rowsForMember(
+      [
+        row({
+          lineAmount: 5_000_000,
+          contributionDays: 10,
+          lineTienCo: 2_500_000,
+          totalCycles: 10,
+          latestKy: 1,
+          latestBidAmount: 500_000,
+          latestContributionPerSlot: 45_000_000,
+          latestWinnerName: "An",
+          latestWinnerPhone: "0909123456",
+          latestWinnerLegStt: 1,
+          latestWinnerSlots: 1,
+          openings: [
+            {
+              kyThu: 1,
+              ngayKhui: "2026-03-27",
+              status: "CHO_GIAO_TIEN",
+              contributionPerSlot: 45_000_000,
+              grossPayout: 0,
+              finalPayout: 0,
+              winnerName: "An",
+              winnerPhone: "0909123456",
+              winnerLegStt: 1,
+              winnerSlots: 1,
+              bidAmount: 500_000,
+            },
+          ],
+          participants: [
+            { legStt: 1, memberId: memberAn.id, memberName: "An", memberPhone: "0909123456" },
+            { legStt: 2, memberId: memberAn.id, memberName: "An", memberPhone: "0909123456" },
+            { legStt: 3, memberId: memberAn.id, memberName: "An", memberPhone: "0909123456" },
+          ],
+        }),
+      ],
+      memberAn,
+    );
+
+    expect(receiptPayoutOpeningForMember(withSlots, memberAn)).toBeNull();
+    expect(receiptPayoutVND(withSlots, memberAn)).toBe(0);
+    expect(shouldOffsetPayInOnReceipt(withSlots, memberAn)).toBe(false);
+    expect(shouldSkipPayInOnReceipt(withSlots, memberAn)).toBe(true);
+    expect(latestCollectedTargetVND(withSlots)).toBe(31_500_000);
+    expect(latestDeliveryAmountVND(withSlots)).toBe(29_000_000);
+  });
+
+  it("keeps GOP payout out of the temporary receipt even on later GOP openings", () => {
+    const [withSlots] = rowsForMember(
+      [
+        row({
+          lineAmount: 5_000_000,
+          contributionDays: 10,
+          lineTienCo: 2_500_000,
+          totalCycles: 10,
+          latestKy: 2,
+          latestBidAmount: 400_000,
+          latestContributionPerSlot: 46_000_000,
+          latestWinnerName: "Bình",
+          latestWinnerPhone: "0911222333",
+          latestWinnerLegStt: 4,
+          latestWinnerSlots: 1,
+          openings: [
+            {
+              kyThu: 1,
+              ngayKhui: "2026-03-27",
+              status: "CHO_GIAO_TIEN",
+              contributionPerSlot: 45_000_000,
+              grossPayout: 0,
+              finalPayout: 0,
+              winnerName: "An",
+              winnerPhone: "0909123456",
+              winnerLegStt: 1,
+              winnerSlots: 1,
+              bidAmount: 500_000,
+            },
+            {
+              kyThu: 2,
+              ngayKhui: "2026-04-06",
+              status: "CHO_GIAO_TIEN",
+              contributionPerSlot: 46_000_000,
+              grossPayout: 0,
+              finalPayout: 0,
+              winnerName: "Bình",
+              winnerPhone: "0911222333",
+              winnerLegStt: 4,
+              winnerSlots: 1,
+              bidAmount: 400_000,
+            },
+          ],
+          participants: [
+            { legStt: 1, memberId: memberAn.id, memberName: "An", memberPhone: "0909123456" },
+            { legStt: 2, memberId: memberAn.id, memberName: "An", memberPhone: "0909123456" },
+            { legStt: 3, memberId: memberAn.id, memberName: "An", memberPhone: "0909123456" },
+          ],
+        }),
+      ],
+      memberAn,
+    );
+
+    expect(receiptPayoutOpeningForMember(withSlots, memberAn)).toBeNull();
+    expect(receiptPayoutVND(withSlots, memberAn)).toBe(0);
+    expect(shouldOffsetPayInOnReceipt(withSlots, memberAn)).toBe(false);
+    expect(shouldSkipPayInOnReceipt(withSlots, memberAn)).toBe(false);
   });
 });
 

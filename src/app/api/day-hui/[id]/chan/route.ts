@@ -46,6 +46,7 @@ export async function GET(
         data: missing.map((stt) => ({ huiLineId: id, stt })),
       });
       clearDayHuiLinesCache(gate.userId);
+      revalidateTag("day-hui-page-data", "max");
       revalidateTag("thu-tien-panel-data", "max");
       revalidateTag("theo-doi-data", "max");
       revalidateTag("dashboard-data", "max");

@@ -20,6 +20,37 @@ export type PhieuGiaoBreakdown = {
   liveTotal: number;
 };
 
+export type PhieuGiaoLineKind = "THUONG" | "GOP";
+
+function normalizePositiveInt(value: number) {
+  return Math.max(0, Math.round(value || 0));
+}
+
+export function phieuGiaoCycleFactor(kind?: PhieuGiaoLineKind, gopCycleDays?: number | null) {
+  if (kind !== "GOP") return 1;
+  return Math.max(1, Math.trunc(gopCycleDays ?? 1));
+}
+
+export function normalizePhieuGiaoContributionVND(
+  contributionPerSlot: number,
+  kind?: PhieuGiaoLineKind,
+  gopCycleDays?: number | null,
+) {
+  const contribution = normalizePositiveInt(contributionPerSlot);
+  const factor = phieuGiaoCycleFactor(kind, gopCycleDays);
+  return Math.round(contribution / factor);
+}
+
+export function normalizePhieuGiaoPayoutVND(
+  payout: number,
+  kind?: PhieuGiaoLineKind,
+  gopCycleDays?: number | null,
+) {
+  const amount = normalizePositiveInt(payout);
+  const factor = phieuGiaoCycleFactor(kind, gopCycleDays);
+  return Math.round(amount / factor);
+}
+
 export function computePhieuGiaoBreakdown(input: PhieuGiaoBreakdownInput): PhieuGiaoBreakdown {
   const M = Math.max(0, Math.round(input.lineAmount));
   const B = Math.max(0, Math.round(input.bidAmount));
@@ -59,7 +90,14 @@ export function kyConLaiSauHoot(totalCycles: number, kyThu: number): number {
   return Math.max(0, Math.trunc(totalCycles) - Math.trunc(kyThu));
 }
 
-export function chuKyLabelVi(chuKy: "NGAY" | "THANG" | "NAM"): string {
+export function chuKyLabelVi(
+  chuKy: "NGAY" | "THANG" | "NAM",
+  kind?: PhieuGiaoLineKind,
+  gopCycleDays?: number | null,
+): string {
+  if (kind === "GOP") {
+    return `${phieuGiaoCycleFactor(kind, gopCycleDays)} ngày / kỳ`;
+  }
   if (chuKy === "NGAY") return "1 ngày / lần";
   if (chuKy === "NAM") return "1 năm / lần";
   return "1 tháng / lần";

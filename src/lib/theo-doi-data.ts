@@ -1,6 +1,8 @@
 import {
+  deadContributionPerCollectionVND,
+  deadSlotsOnRowForMember,
   isMemberWinnerOnRow,
-  rowPayInPayOut,
+  liveContributionPerCollectionVND,
   type HuiLineDetailRow,
   type HuiMemberRef,
   type HuiOpeningForMetrics,
@@ -207,12 +209,18 @@ const loadTheoDoiDataCached = unstable_cache(
     const groups = Array.from(groupMap.values()).map((g) => {
       const sorted = { ...g, legStts: [...g.legStts].sort((a, b) => a - b) };
       const member = memberRefFromGroup(sorted);
-      const rowWithSlots = { ...rowDetail, memberSlots: sorted.slotCount };
-      const { payIn } = rowPayInPayOut(rowWithSlots, member);
       const laNguoiHotKyNay = latest ? isMemberWinnerOnRow(rowDetail, member) : false;
+      const rowWithSlots = { ...rowDetail, memberSlots: sorted.slotCount };
+      const deadSlots = deadSlotsOnRowForMember(rowWithSlots, member);
+      const liveSlots = Math.max(0, sorted.slotCount - deadSlots);
+      const tienDongKyNay = latest
+        ? laNguoiHotKyNay
+          ? 0
+          : liveContributionPerCollectionVND(rowDetail) * liveSlots + deadContributionPerCollectionVND(rowDetail) * deadSlots
+        : null;
       return {
         ...sorted,
-        tienDongKyNay: latest ? payIn : null,
+        tienDongKyNay,
         laNguoiHotKyNay,
       };
     });

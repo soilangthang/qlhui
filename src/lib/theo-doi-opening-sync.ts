@@ -1,6 +1,7 @@
 import type { HuiMemberRef } from "@/lib/hui-member-line-metrics";
 import { openingWinnerMatchesMember, participantMatchesMember } from "@/lib/hui-member-line-metrics";
 import { memberTrackingKeyFromLeg, parseMemberIdFromNote } from "@/lib/member-tracking-key";
+import { shouldAutoCompleteOpeningFromPaidMarks } from "@/lib/theo-doi-opening-policy";
 import { logPerf, perfNowMs } from "@/lib/perf-log";
 import { prisma } from "@/lib/prisma";
 
@@ -147,12 +148,23 @@ export async function tryCompleteOpeningWhenAllNonWinnersPaid(
       winnerLegStt: true,
       winnerName: true,
       winnerPhone: true,
+      huiLine: {
+        select: {
+          kind: true,
+        },
+      },
     },
   });
   if (!opening) {
     return { completed: false, status: "UNKNOWN" };
   }
   if (opening.status !== "CHO_GIAO_TIEN") {
+    return { completed: false, status: opening.status };
+  }
+
+  // Dây góp: tick đủ ở Theo dõi chỉ xác nhận đã thu đủ phần tiền của đợt thu hiện tại,
+  // không đồng nghĩa chủ hụi đã giao tiền cho người hốt.
+  if (!shouldAutoCompleteOpeningFromPaidMarks(opening.huiLine.kind)) {
     return { completed: false, status: opening.status };
   }
 

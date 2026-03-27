@@ -8,6 +8,8 @@ import {
   chuKyLabelVi,
   computePhieuGiaoBreakdown,
   kyConLaiSauHoot,
+  normalizePhieuGiaoContributionVND,
+  normalizePhieuGiaoPayoutVND,
   truChanSongVND,
 } from "@/lib/phieu-giao-hui";
 import { formatViCalendarDate, formatViDateTime } from "@/lib/receipt-datetime";
@@ -25,6 +27,8 @@ export type PhieuGiaoSlipPayload = {
   /** Tiền cò chủ (mỗi kỳ), VNĐ — dùng để hiển thị trừ cò trên phiếu; khớp lúc khui. */
   tienCoLine: number;
   ngayMoIso: string;
+  kind?: "THUONG" | "GOP";
+  gopCycleDays?: number | null;
   chuKy: "NGAY" | "THANG" | "NAM";
   totalCycles: number;
   kyThu: number;
@@ -67,6 +71,19 @@ const PhieuGiaoHuiBlock = forwardRef<
     receiptSetting: ReceiptSetting;
   }
 >(function PhieuGiaoHuiBlock({ payload, receiptSetting }, ref) {
+  const contributionPerSlotDisplay = useMemo(
+    () => normalizePhieuGiaoContributionVND(payload.contributionPerSlot, payload.kind, payload.gopCycleDays),
+    [payload.contributionPerSlot, payload.gopCycleDays, payload.kind],
+  );
+  const grossPayoutDisplay = useMemo(
+    () => normalizePhieuGiaoPayoutVND(payload.grossPayout, payload.kind, payload.gopCycleDays),
+    [payload.gopCycleDays, payload.grossPayout, payload.kind],
+  );
+  const finalPayoutDisplay = useMemo(
+    () => normalizePhieuGiaoPayoutVND(payload.finalPayout, payload.kind, payload.gopCycleDays),
+    [payload.finalPayout, payload.gopCycleDays, payload.kind],
+  );
+
   const breakdown = useMemo(
     () =>
       computePhieuGiaoBreakdown({
@@ -74,16 +91,23 @@ const PhieuGiaoHuiBlock = forwardRef<
         winnerSlots: payload.winnerSlots,
         lineAmount: payload.lineAmount,
         bidAmount: payload.bidAmount,
-        contributionPerSlot: payload.contributionPerSlot,
-        grossPayout: payload.grossPayout,
+        contributionPerSlot: contributionPerSlotDisplay,
+        grossPayout: grossPayoutDisplay,
       }),
-    [payload],
+    [
+      contributionPerSlotDisplay,
+      grossPayoutDisplay,
+      payload.bidAmount,
+      payload.lineAmount,
+      payload.totalCycles,
+      payload.winnerSlots,
+    ],
   );
 
   /** Trừ tiền đầu thảo (cò): theo mức dây; fallback gross−final nếu không có dữ liệu cũ. */
   const tienCoTru = Math.max(0, Math.round(payload.tienCoLine));
   const commission =
-    tienCoTru > 0 ? tienCoTru : Math.max(0, payload.grossPayout - payload.finalPayout);
+    tienCoTru > 0 ? tienCoTru : Math.max(0, grossPayoutDisplay - finalPayoutDisplay);
 
   const memberSlotsKnown =
     payload.memberSlots != null && payload.memberSlots > 0 ? Math.trunc(payload.memberSlots) : null;
@@ -94,14 +118,14 @@ const PhieuGiaoHuiBlock = forwardRef<
       ? hoiTienDaTruCoTheoNhieuChan(
           payload.totalCycles,
           memberSlotsKnown,
-          payload.contributionPerSlot,
+          contributionPerSlotDisplay,
           commission,
         )
       : null;
 
   const truChanSong =
     memberSlotsKnown != null
-      ? truChanSongVND(memberSlotsKnown, payload.winnerSlots, payload.contributionPerSlot)
+      ? truChanSongVND(memberSlotsKnown, payload.winnerSlots, contributionPerSlotDisplay)
       : 0;
 
   const chanSongTruCount =
@@ -110,8 +134,8 @@ const PhieuGiaoHuiBlock = forwardRef<
   /** Số tiền cần giao: ưu tiên công thức nhiều chân nếu biết N; không thì như cũ. */
   const soTienCanGiao =
     payoffTheoNhieuChan != null ? payoffTheoNhieuChan : tienCoTru > 0
-      ? Math.max(0, payload.grossPayout - tienCoTru)
-      : payload.finalPayout;
+      ? Math.max(0, grossPayoutDisplay - tienCoTru)
+      : finalPayoutDisplay;
   const kyConLai = kyConLaiSauHoot(payload.totalCycles, payload.kyThu);
   /** Thời điểm “ngày giao” / ký: cập nhật theo thời gian thực, trước khi in và định kỳ. */
   const [slipNow, setSlipNow] = useState(() => new Date());
@@ -198,7 +222,7 @@ const PhieuGiaoHuiBlock = forwardRef<
         </div>
         <div className="flex justify-between gap-2 bg-white px-3 py-2">
           <span className="font-semibold text-slate-600">Khui</span>
-          <span className="font-medium">{chuKyLabelVi(payload.chuKy)}</span>
+          <span className="font-medium">{chuKyLabelVi(payload.chuKy, payload.kind, payload.gopCycleDays)}</span>
         </div>
         <div className="flex justify-between gap-2 bg-white px-3 py-2">
           <span className="font-semibold text-slate-600">Ngày hốt</span>
@@ -235,14 +259,14 @@ const PhieuGiaoHuiBlock = forwardRef<
             <tr>
               <td className="py-2 pr-2 font-semibold text-slate-800">Số chân sống</td>
               <td className="py-2 text-right font-bold tabular-nums">
-                {breakdown.liveCount} × {formatMoneyVN(payload.contributionPerSlot)} ={" "}
+                {breakdown.liveCount} × {formatMoneyVN(contributionPerSlotDisplay)} ={" "}
                 {formatMoneyVN(breakdown.liveTotal)}
               </td>
             </tr>
             <tr className="border-t-2 border-amber-400">
               <td className="py-2 pr-2 font-extrabold text-slate-900">Tổng số tiền hụi</td>
               <td className="py-2 text-right text-lg font-extrabold tabular-nums text-slate-900 print:text-base">
-                {formatMoneyVN(payload.grossPayout)}
+                {formatMoneyVN(grossPayoutDisplay)}
               </td>
             </tr>
             <tr>
@@ -257,7 +281,7 @@ const PhieuGiaoHuiBlock = forwardRef<
                 <td className="py-2 text-right font-bold tabular-nums">
                   <span className="text-rose-700">− {formatMoneyVN(truChanSong)}</span>
                   <span className="mt-0.5 block text-sm font-semibold text-slate-800 print:text-xs">
-                    {chanSongTruCount} × {formatMoneyVN(payload.contributionPerSlot)} = {formatMoneyVN(truChanSong)}
+                    {chanSongTruCount} × {formatMoneyVN(contributionPerSlotDisplay)} = {formatMoneyVN(truChanSong)}
                   </span>
                 </td>
               </tr>

@@ -38,6 +38,7 @@ export type HuiOpeningHistory = HuiOpeningForMetrics & {
 export type HuiLineDetailRow = {
   lineId: string;
   lineName: string;
+  lineKind?: "THUONG" | "GOP";
   lineAmount: number;
   /** Hệ số quy đổi đóng theo kỳ (dây góp: số ngày mỗi kỳ; dây thường: 1). Mặc định = 1. */
   contributionDays?: number;
@@ -57,6 +58,7 @@ export type HuiLineDetailRow = {
   latestWinnerPhone: string | null;
   latestWinnerLegStt: number | null;
   latestWinnerSlots: number;
+  latestMarkedCollectedAmount?: number;
   participants: HuiLineParticipant[];
   openings: HuiOpeningForMetrics[];
 };
@@ -212,6 +214,101 @@ export function isMemberWinnerOnRow(row: HuiLineDetailRow, member: HuiMemberRef 
   return openingWinnerMatchesMember(row.latestWinnerName, row.latestWinnerPhone, member);
 }
 
+function isGopRow(row: HuiLineDetailRow) {
+  return Math.max(1, row.contributionDays ?? 1) > 1;
+}
+
+export function latestWinningOpeningForMember(row: HuiLineDetailRow, member: HuiMemberRef | null) {
+  if (!member) return null;
+  if (row.openings.length > 0) {
+    const sorted = [...row.openings].sort((a, b) => b.kyThu - a.kyThu);
+    for (const opening of sorted) {
+      if (openingWinnerMatchesMember(opening.winnerName, opening.winnerPhone, member)) {
+        return opening;
+      }
+    }
+  }
+
+  if (!isMemberWinnerOnRow(row, member) || row.latestKy == null || row.latestKy <= 0) {
+    return null;
+  }
+
+  return {
+    kyThu: row.latestKy,
+    status: row.latestOpeningStatus ?? "CHO_GIAO_TIEN",
+    contributionPerSlot: row.latestContributionPerSlot,
+    winnerName: row.latestWinnerName,
+    winnerPhone: row.latestWinnerPhone,
+    winnerLegStt: row.latestWinnerLegStt,
+    winnerSlots: row.latestWinnerSlots,
+  };
+}
+
+export function receiptPayoutOpeningForMember(row: HuiLineDetailRow, member: HuiMemberRef | null) {
+  const winningOpening = latestWinningOpeningForMember(row, member);
+  if (!winningOpening || row.latestKy == null || row.latestKy <= 0) return null;
+
+  if (isGopRow(row)) {
+    return null;
+  }
+
+  return row.latestKy === winningOpening.kyThu ? winningOpening : null;
+}
+
+export function receiptPayoutVND(row: RowWithMemberSlots, member: HuiMemberRef | null) {
+  const opening = receiptPayoutOpeningForMember(row, member);
+  if (!opening) return 0;
+  const cycleFactor = Math.max(1, row.contributionDays ?? 1);
+  const contribution = opening.contributionPerSlot || row.lineAmount * cycleFactor;
+  const contributionPerCycle = Math.round(contribution / cycleFactor);
+  return hoiTienDaTruCoTheoNhieuChan(row.totalCycles, row.memberSlots, contributionPerCycle, row.lineTienCo);
+}
+
+export function latestWinnerMemberSlots(row: HuiLineDetailRow) {
+  const fallback = Math.max(1, row.latestWinnerSlots || 1);
+  if (!row.latestWinnerName) return fallback;
+  const ref: HuiMemberRef = {
+    id: "",
+    name: row.latestWinnerName,
+    phone: row.latestWinnerPhone ?? "",
+  };
+  const slots = row.participants.reduce(
+    (acc, participant) => (participantMatchesMember(participant, ref) ? acc + 1 : acc),
+    0,
+  );
+  return Math.max(fallback, slots || 0);
+}
+
+export function latestCollectedTargetVND(row: HuiLineDetailRow) {
+  if (row.latestKy == null || row.latestKy <= 0) return 0;
+  return hoiTienDaTruCoTheoNhieuChan(
+    row.totalCycles,
+    latestWinnerMemberSlots(row),
+    liveContributionPerCycleVND(row),
+    0,
+  );
+}
+
+export function latestDeliveryAmountVND(row: HuiLineDetailRow) {
+  if (row.latestKy == null || row.latestKy <= 0) return 0;
+  return hoiTienDaTruCoTheoNhieuChan(
+    row.totalCycles,
+    latestWinnerMemberSlots(row),
+    liveContributionPerCycleVND(row),
+    row.lineTienCo,
+  );
+}
+
+export function shouldOffsetPayInOnReceipt(row: RowWithMemberSlots, member: HuiMemberRef | null) {
+  return receiptPayoutOpeningForMember(row, member) != null;
+}
+
+export function shouldSkipPayInOnReceipt(row: RowWithMemberSlots, member: HuiMemberRef | null) {
+  if (shouldOffsetPayInOnReceipt(row, member)) return true;
+  if (isGopRow(row) && isMemberWinnerOnRow(row, member)) return true;
+  return false;
+}
+
 export function futureDeadLegPayEstimate(row: HuiLineDetailRow, member: HuiMemberRef | null): number {
   if (isMemberWinnerOnRow(row, member)) return 0;
   const dead = deadSlotsOnRowForMember(row, member);
@@ -263,6 +360,26 @@ export function nextHootDateIso(row: HuiLineDetailRow): string | null {
 }
 
 export type RowWithMemberSlots = HuiLineDetailRow & { memberSlots: number };
+
+function currentCycleFactor(row: HuiLineDetailRow) {
+  return Math.max(1, row.contributionDays ?? 1);
+}
+
+export function liveContributionPerCycleVND(row: HuiLineDetailRow) {
+  const cycleFactor = currentCycleFactor(row);
+  if (row.latestContributionPerSlot > 0) {
+    return Math.round(row.latestContributionPerSlot / cycleFactor);
+  }
+  return Math.max(0, row.lineAmount - row.latestBidAmount);
+}
+
+export function liveContributionPerCollectionVND(row: HuiLineDetailRow) {
+  return Math.round(liveContributionPerCycleVND(row) / currentCycleFactor(row));
+}
+
+export function deadContributionPerCollectionVND(row: HuiLineDetailRow) {
+  return Math.round(row.lineAmount / currentCycleFactor(row));
+}
 
 export function rowsForMember(rows: HuiLineDetailRow[], member: HuiMemberRef | null): RowWithMemberSlots[] {
   if (!member) return [];

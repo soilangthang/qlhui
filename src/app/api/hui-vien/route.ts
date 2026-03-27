@@ -80,6 +80,7 @@ export async function POST(request: Request) {
     });
 
     // Invalidate server cache dùng chung cho báo cáo/chi tiết/phiếu theo user.
+    revalidateTag("hui-vien-page-data", "max");
     revalidateTag("thu-tien-panel-data", "max");
     revalidateTag("theo-doi-data", "max");
     return NextResponse.json({ ok: true, member: created });

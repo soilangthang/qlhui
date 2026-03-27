@@ -131,6 +131,7 @@ export default function MobileBottomNav({ pathname }: { pathname: string }) {
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch={true}
                 className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 px-0.5 py-2 outline-none ring-amber-400/50 focus-visible:ring-2 ${
                   active ? "bg-amber-50/80" : "active:bg-slate-50"
                 }`}
@@ -148,6 +149,7 @@ export default function MobileBottomNav({ pathname }: { pathname: string }) {
           })}
         <Link
           href="/cac-chuc-nang"
+          prefetch={true}
           className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 px-0.5 py-2 outline-none ring-amber-400/50 focus-visible:ring-2 ${
             moreActive ? "bg-amber-50/80" : "active:bg-slate-50"
           }`}

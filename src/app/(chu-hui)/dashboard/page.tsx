@@ -17,6 +17,7 @@ import { assertChuHuiUserId } from "@/lib/chu-hui-scope";
 import { addCycleFromDate } from "@/lib/hui-member-line-metrics";
 import { hoChiMinhCalendarKeyFromDate, hoChiMinhCalendarKeyFromIso } from "@/lib/local-calendar";
 import { logPerf, perfNowMs } from "@/lib/perf-log";
+import { normalizePhieuGiaoPayoutVND } from "@/lib/phieu-giao-hui";
 import { prisma } from "@/lib/prisma";
 
 /** Card trắng — cùng phong cách dashboard (viền xám nhạt, bo góc). */
@@ -37,6 +38,23 @@ function formatDateVN(value: unknown) {
   const m = String(date.getMonth() + 1).padStart(2, "0");
   const y = date.getFullYear();
   return `${d}/${m}/${y}`;
+}
+
+function normalizedGrossVND(input: {
+  grossPayout: number;
+  huiLine: { kind: "THUONG" | "GOP"; gopCycleDays: number | null };
+}) {
+  return normalizePhieuGiaoPayoutVND(input.grossPayout, input.huiLine.kind, input.huiLine.gopCycleDays);
+}
+
+function normalizedFinalVND(input: {
+  grossPayout: number;
+  finalPayout: number;
+  huiLine: { kind: "THUONG" | "GOP"; gopCycleDays: number | null; tienCo: unknown };
+}) {
+  const gross = normalizedGrossVND(input);
+  const commission = Math.max(0, Math.round(Number(input.huiLine.tienCo ?? 0)));
+  return Math.max(0, gross - commission);
 }
 
 /** Giống cột Trạng thái ở trang Dây hụi: đã khui → kỳ X/Y; chưa khui → Đang chờ. */
@@ -68,7 +86,7 @@ function toDateOrNull(input: unknown): Date | null {
 
 const loadDashboardDataCached = unstable_cache(
   async (userId: string) => {
-    const [huiMemberCount, choGiaoTien, lines, grossSum, paidOutSum, commissionRows, latestOpeningGlobal] =
+    const [huiMemberCount, choGiaoTien, lines, payoutRows, latestOpeningGlobal] =
       await Promise.all([
         prisma.huiMember.count({ where: { userId } }),
         prisma.huiOpening.findMany({
@@ -81,8 +99,9 @@ const loadDashboardDataCached = unstable_cache(
             ngayKhui: true,
             winnerName: true,
             winnerPhone: true,
+            grossPayout: true,
             finalPayout: true,
-            huiLine: { select: { id: true, name: true } },
+            huiLine: { select: { id: true, name: true, kind: true, gopCycleDays: true, tienCo: true } },
           },
         }),
         prisma.huiLine.findMany({
@@ -97,17 +116,14 @@ const loadDashboardDataCached = unstable_cache(
             },
           },
         }),
-        prisma.huiOpening.aggregate({
-          where: { huiLine: { userId } },
-          _sum: { grossPayout: true },
-        }),
-        prisma.huiOpening.aggregate({
-          where: { status: "DA_GIAO_TIEN", huiLine: { userId } },
-          _sum: { finalPayout: true },
-        }),
         prisma.huiOpening.findMany({
           where: { huiLine: { userId } },
-          select: { grossPayout: true, finalPayout: true },
+          select: {
+            grossPayout: true,
+            finalPayout: true,
+            status: true,
+            huiLine: { select: { kind: true, gopCycleDays: true, tienCo: true } },
+          },
         }),
         prisma.huiOpening.findFirst({
           where: { huiLine: { userId } },
@@ -124,9 +140,7 @@ const loadDashboardDataCached = unstable_cache(
       huiMemberCount,
       choGiaoTien,
       lines,
-      grossSum,
-      paidOutSum,
-      commissionRows,
+      payoutRows,
       latestOpeningGlobal,
     };
   },
@@ -137,15 +151,18 @@ const loadDashboardDataCached = unstable_cache(
 export default async function DashboardPage() {
   const t0 = perfNowMs();
   const userId = await assertChuHuiUserId();
-  const { huiMemberCount, choGiaoTien, lines, grossSum, paidOutSum, commissionRows, latestOpeningGlobal } =
+  const { huiMemberCount, choGiaoTien, lines, payoutRows, latestOpeningGlobal } =
     await loadDashboardDataCached(userId);
 
-  const totalGross = Number(grossSum._sum.grossPayout ?? 0);
-  const totalPaidOut = Number(paidOutSum._sum.finalPayout ?? 0);
-  const tienCoLuyKe = commissionRows.reduce(
-    (acc, o) => acc + Math.max(0, o.grossPayout - o.finalPayout),
+  const totalGross = payoutRows.reduce((sum, row) => sum + normalizedGrossVND(row), 0);
+  const totalPaidOut = payoutRows.reduce(
+    (sum, row) =>
+      row.status === "DA_GIAO_TIEN"
+        ? sum + normalizedFinalVND(row)
+        : sum,
     0,
   );
+  const tienCoLuyKe = Math.max(0, totalGross - totalPaidOut);
 
   const sapMo = lines.filter((l) => l.status === "SAP_MO");
   const dangChay = lines.filter((l) => l.status === "DANG_CHAY");
@@ -224,7 +241,9 @@ export default async function DashboardPage() {
                         </div>
                         <p className="mt-0.5 text-xs text-white/80">
                           {o.huiLine.name} · Kỳ {o.kyThu} · {formatDateVN(o.ngayKhui)} ·{" "}
-                          <span className="font-semibold text-white">{formatMoneyVN(o.finalPayout)}</span>
+                          <span className="font-semibold text-white">
+                            {formatMoneyVN(normalizedFinalVND(o))}
+                          </span>
                         </p>
                       </li>
                     );

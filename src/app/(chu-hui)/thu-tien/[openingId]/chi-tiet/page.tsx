@@ -35,6 +35,8 @@ export default async function ThuTienChiTietPage({
           select: {
             id: true,
             name: true,
+            kind: true,
+            gopCycleDays: true,
             soChan: true,
             mucHuiThang: true,
             tienCo: true,
@@ -83,6 +85,8 @@ export default async function ThuTienChiTietPage({
     lineAmount: Number(opening.huiLine.mucHuiThang),
     tienCoLine: Math.max(0, Math.round(Number(opening.huiLine.tienCo ?? 0))),
     ngayMoIso: opening.huiLine.ngayMo.toISOString(),
+    kind: opening.huiLine.kind,
+    gopCycleDays: opening.huiLine.gopCycleDays,
     chuKy: opening.huiLine.chuKy,
     totalCycles: opening.huiLine.soChan,
     kyThu: opening.kyThu,

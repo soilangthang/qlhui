@@ -194,6 +194,7 @@ export async function PUT(
     });
 
     clearDayHuiLinesCache(gate.userId);
+    revalidateTag("day-hui-page-data", "max");
     revalidateTag("thu-tien-panel-data", "max");
     revalidateTag("theo-doi-data", "max");
     revalidateTag("dashboard-data", "max");
@@ -230,6 +231,7 @@ export async function DELETE(
     }
     await prisma.huiLine.delete({ where: { id } });
     clearDayHuiLinesCache(gate.userId);
+    revalidateTag("day-hui-page-data", "max");
     revalidateTag("thu-tien-panel-data", "max");
     revalidateTag("theo-doi-data", "max");
     revalidateTag("dashboard-data", "max");

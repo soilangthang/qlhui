@@ -1,10 +1,18 @@
 import { unstable_cache } from "next/cache";
 
-import type { HuiOpeningForMetrics } from "@/lib/hui-member-line-metrics";
+import {
+  deadContributionPerCollectionVND,
+  deadSlotsOnRowForMember,
+  isMemberWinnerOnRow,
+  liveContributionPerCollectionVND,
+  type HuiOpeningForMetrics,
+  type HuiLineDetailRow,
+  type HuiMemberRef,
+} from "@/lib/hui-member-line-metrics";
 import { getOwnerReceiptLogoDataUrl } from "@/lib/owner-receipt-logo";
 import { logPerf, perfNowMs } from "@/lib/perf-log";
 import { prisma } from "@/lib/prisma";
-import { parseMemberIdFromNote } from "@/lib/member-tracking-key";
+import { memberTrackingKeyFromLeg, parseMemberIdFromNote } from "@/lib/member-tracking-key";
 
 export { parseMemberIdFromNote } from "@/lib/member-tracking-key";
 
@@ -16,6 +24,68 @@ type LoadThuTienOptions = {
    */
   embedReceiptImages?: boolean;
 };
+
+type PaidMarkRow = { huiOpeningId: string; memberKey: string; paidFull: boolean };
+
+async function loadMarksForOpenings(openingIds: string[]): Promise<PaidMarkRow[]> {
+  if (openingIds.length === 0) return [];
+  try {
+    return await prisma.huiOpeningMemberPaidMark.findMany({
+      where: { huiOpeningId: { in: openingIds } },
+      select: { huiOpeningId: true, memberKey: true, paidFull: true },
+    });
+  } catch (e) {
+    console.error("[thu-tien] Không đọc được bảng đánh dấu:", e);
+    return [];
+  }
+}
+
+function markedCollectedAmountForLatestOpening(
+  row: HuiLineDetailRow,
+  latestOpeningId: string | null,
+  marksByOpeningAndMemberKey: Map<string, boolean>,
+  legs: { stt: number; memberName: string | null; memberPhone: string | null; note: string | null }[],
+) {
+  if (!latestOpeningId) return 0;
+
+  const groups = new Map<
+    string,
+    { memberKey: string; memberName: string; memberPhone: string; slotCount: number }
+  >();
+
+  for (const leg of legs) {
+    const memberKey = memberTrackingKeyFromLeg(leg);
+    if (!memberKey) continue;
+    const current = groups.get(memberKey);
+    if (current) {
+      current.slotCount += 1;
+      continue;
+    }
+    groups.set(memberKey, {
+      memberKey,
+      memberName: (leg.memberName ?? "").trim(),
+      memberPhone: (leg.memberPhone ?? "").trim(),
+      slotCount: 1,
+    });
+  }
+
+  let total = 0;
+  for (const group of groups.values()) {
+    if (!marksByOpeningAndMemberKey.get(`${latestOpeningId}\t${group.memberKey}`)) continue;
+    const member: HuiMemberRef = {
+      id: group.memberKey.startsWith("id:") ? group.memberKey.slice(3) : group.memberKey,
+      name: group.memberName,
+      phone: group.memberPhone,
+    };
+    const rowWithSlots = { ...row, memberSlots: group.slotCount };
+    if (isMemberWinnerOnRow(rowWithSlots, member)) continue;
+    const deadSlots = deadSlotsOnRowForMember(rowWithSlots, member);
+    const liveSlots = Math.max(0, group.slotCount - deadSlots);
+    total += liveContributionPerCollectionVND(row) * liveSlots + deadContributionPerCollectionVND(row) * deadSlots;
+  }
+
+  return total;
+}
 
 const loadRowsAndMembersCached = unstable_cache(
   async (userId: string) => {
@@ -51,6 +121,7 @@ const loadRowsAndMembersCached = unstable_cache(
           where: { huiLineId: { in: lineIds } },
           orderBy: [{ huiLineId: "asc" }, { kyThu: "asc" }],
           select: {
+            id: true,
             huiLineId: true,
             kyThu: true,
             ngayKhui: true,
@@ -74,12 +145,25 @@ const loadRowsAndMembersCached = unstable_cache(
       else openingsByLineId.set(o.huiLineId, [o]);
     }
 
+    const latestOpeningIds = allOpenings
+      .reduce<string[]>((acc, o, index, arr) => {
+        const next = arr[index + 1];
+        if (!next || next.huiLineId !== o.huiLineId) acc.push(o.id);
+        return acc;
+      }, []);
+    const marks = await loadMarksForOpenings(latestOpeningIds);
+    const marksByOpeningAndMemberKey = new Map<string, boolean>();
+    for (const mark of marks) {
+      marksByOpeningAndMemberKey.set(`${mark.huiOpeningId}\t${mark.memberKey}`, mark.paidFull);
+    }
+
     const rows = lines.map((line) => {
       const openings = openingsByLineId.get(line.id) ?? [];
       const latest = openings.length > 0 ? openings[openings.length - 1] : null;
-      return {
+      const rowBase: HuiLineDetailRow = {
         lineId: line.id,
         lineName: line.name,
+        lineKind: line.kind,
         lineAmount: Number(line.mucHuiThang),
         contributionDays: line.kind === "GOP" ? Math.max(1, line.gopCycleDays ?? 1) : 1,
         lineTienCo: Math.max(0, Math.round(Number(line.tienCo ?? 0))),
@@ -97,6 +181,7 @@ const loadRowsAndMembersCached = unstable_cache(
         latestWinnerPhone: latest?.winnerPhone ?? null,
         latestWinnerLegStt: latest?.winnerLegStt ?? null,
         latestWinnerSlots: latest?.winnerSlots ?? 1,
+        latestMarkedCollectedAmount: 0,
         openings: openings.map(
           (o): HuiOpeningForMetrics => ({
             kyThu: o.kyThu,
@@ -115,11 +200,20 @@ const loadRowsAndMembersCached = unstable_cache(
           memberPhone: leg.memberPhone,
         })),
       };
+
+      rowBase.latestMarkedCollectedAmount = markedCollectedAmountForLatestOpening(
+        rowBase,
+        latest?.id ?? null,
+        marksByOpeningAndMemberKey,
+        line.legs,
+      );
+
+      return rowBase;
     });
     logPerf("loadThuTienRowsAndMembers", t0, `userId=${userId} members=${members.length} rows=${rows.length}`);
     return { members, rows };
   },
-  ["thu-tien-rows-members-v3"],
+  ["thu-tien-rows-members-v6"],
   // TTL dài hơn để giảm truy vấn lặp khi người dùng chuyển tab qua lại.
   { revalidate: 180, tags: ["thu-tien-panel-data", "chi-tiet-hui-vien-data"] },
 );

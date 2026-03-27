@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import LogoutButton from "@/components/logout-button";
@@ -48,7 +48,6 @@ const menus = [
 
 export default function HuiShell({ children }: Readonly<{ children: React.ReactNode }>) {
   const pathname = usePathname();
-  const router = useRouter();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [access, setAccess] = useState<MeAccess | null>(null);
   /** Tăng định kỳ để đếm ngày dùng thử cập nhật (qua ngày / đổi tab). */
@@ -80,11 +79,6 @@ export default function HuiShell({ children }: Readonly<{ children: React.ReactN
   }, []);
 
   useEffect(() => {
-    const navTargets = menus.map((m) => m.href);
-    for (const href of navTargets) router.prefetch(href);
-  }, [router]);
-
-  useEffect(() => {
     const id = setInterval(() => setTrialTick((n) => n + 1), 60_000);
     return () => clearInterval(id);
   }, []);
@@ -108,6 +102,7 @@ export default function HuiShell({ children }: Readonly<{ children: React.ReactN
         <div className="mx-auto flex max-w-[1400px] items-center justify-between gap-3 px-3 py-2.5 sm:px-5 sm:py-3">
           <Link
             href="/dashboard"
+            prefetch={true}
             className="flex min-w-0 items-center gap-2 sm:gap-3 rounded-xl outline-none ring-amber-400/40 transition hover:opacity-95 focus-visible:ring-2"
           >
             <Image
@@ -189,6 +184,7 @@ export default function HuiShell({ children }: Readonly<{ children: React.ReactN
                 <Link
                   key={menu.href}
                   href={menu.href}
+                  prefetch={true}
                   className={`block w-full rounded-xl px-4 py-3 text-left text-sm font-semibold ${
                     active
                       ? "bg-slate-900 text-white"
