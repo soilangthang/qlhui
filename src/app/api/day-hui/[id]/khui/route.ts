@@ -64,7 +64,15 @@ export async function POST(
 
     const line = await prisma.huiLine.findFirst({
       where: { id, userId: gate.userId },
-      select: { id: true, soChan: true, mucHuiThang: true, tienCo: true },
+      select: {
+        id: true,
+        soChan: true,
+        mucHuiThang: true,
+        tienCo: true,
+        kind: true,
+        gopCycleDays: true,
+        fixedBid: true,
+      },
     });
     if (!line) {
       return NextResponse.json({ message: "Dây hụi không tồn tại" }, { status: 404 });
@@ -87,12 +95,23 @@ export async function POST(
     // Mỗi lần khui chỉ hốt đúng 1 chân (STT đã chọn). Các chân khác của cùng hụi viên vẫn sống.
     const winnerSlots = 1;
 
+    const cycleDays = line.kind === "GOP" ? Math.max(1, line.gopCycleDays ?? 1) : 1;
+    const rawBid = line.kind === "GOP" ? (line.fixedBid ?? 0) : (parsed.data.bidAmount ?? 0);
+    const safeBidAmount = Math.max(0, Math.trunc(rawBid));
+    if (line.kind === "GOP" && safeBidAmount >= huiAmount) {
+      return NextResponse.json(
+        { message: "Giá thăm cố định phải nhỏ hơn mức dây hụi góp." },
+        { status: 400 },
+      );
+    }
+
     const payout = calculateHuiPayout({
       totalSlots: line.soChan,
       winnerSlots,
       huiAmount,
-      bidAmount: parsed.data.bidAmount ?? 0,
+      bidAmount: safeBidAmount,
       commission,
+      cycleDays,
     });
 
     const openingCount = await prisma.huiOpening.count({ where: { huiLineId: id } });
@@ -108,7 +127,7 @@ export async function POST(
           winnerName: winnerLeg.memberName || `Chân ${winnerLeg.stt}`,
           winnerPhone: winnerLeg.memberPhone || null,
           winnerSlots,
-          bidAmount: parsed.data.bidAmount ?? 0,
+          bidAmount: safeBidAmount,
           contributors: payout.contributors,
           contributionPerSlot: payout.contributionPerSlot,
           grossPayout: payout.grossPayout,

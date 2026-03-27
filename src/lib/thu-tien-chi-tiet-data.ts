@@ -32,6 +32,8 @@ const loadRowsAndMembersCached = unstable_cache(
       select: {
         id: true,
         name: true,
+        kind: true,
+        gopCycleDays: true,
         soChan: true,
         mucHuiThang: true,
         tienCo: true,
@@ -40,9 +42,16 @@ const loadRowsAndMembersCached = unstable_cache(
         legs: {
           select: { stt: true, memberName: true, memberPhone: true, note: true },
         },
-        openings: {
-          orderBy: { kyThu: "asc" },
+      },
+    });
+
+    const lineIds = lines.map((line) => line.id);
+    const allOpenings = lineIds.length
+      ? await prisma.huiOpening.findMany({
+          where: { huiLineId: { in: lineIds } },
+          orderBy: [{ huiLineId: "asc" }, { kyThu: "asc" }],
           select: {
+            huiLineId: true,
             kyThu: true,
             ngayKhui: true,
             status: true,
@@ -55,17 +64,24 @@ const loadRowsAndMembersCached = unstable_cache(
             winnerLegStt: true,
             winnerSlots: true,
           },
-        },
-      },
-    });
+        })
+      : [];
+
+    const openingsByLineId = new Map<string, typeof allOpenings>();
+    for (const o of allOpenings) {
+      const bucket = openingsByLineId.get(o.huiLineId);
+      if (bucket) bucket.push(o);
+      else openingsByLineId.set(o.huiLineId, [o]);
+    }
 
     const rows = lines.map((line) => {
-      const openings = line.openings ?? [];
+      const openings = openingsByLineId.get(line.id) ?? [];
       const latest = openings.length > 0 ? openings[openings.length - 1] : null;
       return {
         lineId: line.id,
         lineName: line.name,
         lineAmount: Number(line.mucHuiThang),
+        contributionDays: line.kind === "GOP" ? Math.max(1, line.gopCycleDays ?? 1) : 1,
         lineTienCo: Math.max(0, Math.round(Number(line.tienCo ?? 0))),
         ngayMo: line.ngayMo.toISOString(),
         chuKy: line.chuKy,
@@ -103,9 +119,9 @@ const loadRowsAndMembersCached = unstable_cache(
     logPerf("loadThuTienRowsAndMembers", t0, `userId=${userId} members=${members.length} rows=${rows.length}`);
     return { members, rows };
   },
-  ["thu-tien-rows-members-v2"],
+  ["thu-tien-rows-members-v3"],
   // TTL dài hơn để giảm truy vấn lặp khi người dùng chuyển tab qua lại.
-  { revalidate: 90, tags: ["thu-tien-panel-data", "chi-tiet-hui-vien-data"] },
+  { revalidate: 180, tags: ["thu-tien-panel-data", "chi-tiet-hui-vien-data"] },
 );
 
 const loadReceiptSettingForClientCached = unstable_cache(

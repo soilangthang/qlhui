@@ -76,6 +76,8 @@ const loadTheoDoiDataCached = unstable_cache(
     select: {
       id: true,
       name: true,
+      kind: true,
+      gopCycleDays: true,
       soChan: true,
       mucHuiThang: true,
       tienCo: true,
@@ -168,6 +170,7 @@ const loadTheoDoiDataCached = unstable_cache(
       lineId: line.id,
       lineName: line.name,
       lineAmount: Number(line.mucHuiThang),
+      contributionDays: line.kind === "GOP" ? Math.max(1, line.gopCycleDays ?? 1) : 1,
       lineTienCo: Math.max(0, Math.round(Number(line.tienCo ?? 0))),
       ngayMo: line.ngayMo.toISOString(),
       chuKy: line.chuKy,

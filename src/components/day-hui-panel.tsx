@@ -7,6 +7,9 @@ import { deleteClientCacheByPrefix, getClientCache, setClientCache } from "@/lib
 type DayHui = {
   id: string;
   name: string;
+  kind: "THUONG" | "GOP";
+  gopCycleDays?: number | null;
+  fixedBid?: number | null;
   soChan: number;
   mucHuiThang: string;
   tienCo: string | null;
@@ -38,7 +41,15 @@ type AssignedGroup = {
   legs: HuiLeg[];
 };
 
-type LineFormField = "name" | "soChan" | "mucHuiThang" | "ngayMo" | "tienCo";
+type LineFormField =
+  | "name"
+  | "soChan"
+  | "mucHuiThang"
+  | "ngayMo"
+  | "tienCo"
+  | "kind"
+  | "gopCycleDays"
+  | "fixedBid";
 
 function parseMoneyToDecimalLocal(input: string) {
   const normalized = input.replace(/[^\d.-]/g, "");
@@ -64,6 +75,9 @@ export default function DayHuiPanel({ initialLines = [] }: { initialLines?: DayH
   const [soChan, setSoChan] = useState("");
   const [mucHuiThang, setMucHuiThang] = useState("");
   const [tienCo, setTienCo] = useState("");
+  const [kind, setKind] = useState<DayHui["kind"]>("THUONG");
+  const [gopCycleDays, setGopCycleDays] = useState("10");
+  const [fixedBid, setFixedBid] = useState("");
   const [chuKy, setChuKy] = useState<DayHui["chuKy"]>("THANG");
   const [ngayMo, setNgayMo] = useState("");
   const [calendarOpen, setCalendarOpen] = useState(false);
@@ -147,6 +161,9 @@ export default function DayHuiPanel({ initialLines = [] }: { initialLines?: DayH
           (line: {
             id: string;
             name: string;
+            kind?: "THUONG" | "GOP";
+            gopCycleDays?: number | null;
+            fixedBid?: number | null;
             soChan: number;
             mucHuiThang: string;
             tienCo: string | null;
@@ -157,6 +174,9 @@ export default function DayHuiPanel({ initialLines = [] }: { initialLines?: DayH
             openingCount?: number;
           }) => ({
             ...line,
+            kind: line.kind ?? "THUONG",
+            gopCycleDays: line.gopCycleDays ?? null,
+            fixedBid: line.fixedBid ?? null,
             ngayMo: formatDateDisplay(new Date(line.ngayMo)),
           }),
         );
@@ -238,6 +258,22 @@ export default function DayHuiPanel({ initialLines = [] }: { initialLines?: DayH
       else if (Number(dec) < 0) next.tienCo = "Tiền cò không được âm";
     }
 
+    if (kind === "GOP") {
+      const days = Number(gopCycleDays);
+      if (!Number.isInteger(days) || days <= 0) {
+        next.gopCycleDays = "Số ngày mỗi kỳ góp phải là số nguyên dương";
+      }
+      const bid = Number(fixedBid);
+      if (!fixedBid.trim()) next.fixedBid = "Vui lòng nhập giá thăm cố định";
+      else if (!Number.isInteger(bid) || bid < 0) next.fixedBid = "Giá thăm cố định không hợp lệ";
+      else {
+        const muc = Number(parseMoneyToDecimalLocal(mucHuiThang.trim()) ?? "0");
+        if (muc > 0 && bid >= muc) {
+          next.fixedBid = "Giá thăm cố định phải nhỏ hơn mức dây";
+        }
+      }
+    }
+
     return next;
   }
 
@@ -261,6 +297,11 @@ export default function DayHuiPanel({ initialLines = [] }: { initialLines?: DayH
     return "Tháng";
   }
 
+  function formatLoaiDay(line: DayHui) {
+    if (line.kind !== "GOP") return "Dây thường";
+    return `Dây góp (${line.gopCycleDays ?? 1} ngày/kỳ)`;
+  }
+
   const lineQuery = lineSearch.trim().toLowerCase();
   const linesMatchingSearch = !lineQuery
     ? lines
@@ -272,6 +313,8 @@ export default function DayHuiPanel({ initialLines = [] }: { initialLines?: DayH
           line.mucHuiThang,
           line.ngayMo,
           formatChuKy(line.chuKy),
+          formatLoaiDay(line),
+          line.fixedBid != null ? formatMoneyVN(String(line.fixedBid)) : "",
           formatStatus(line),
         ]
           .join(" ")
@@ -306,6 +349,9 @@ export default function DayHuiPanel({ initialLines = [] }: { initialLines?: DayH
           soChan: Number(soChan),
           mucHuiThang: mucHuiThang.trim(),
           tienCo: tienCo.trim(),
+          kind,
+          gopCycleDays: kind === "GOP" ? Number(gopCycleDays) : undefined,
+          fixedBid: kind === "GOP" ? Number(fixedBid) : undefined,
           chuKy,
           ngayMo: ngayMo.trim(),
         }),
@@ -324,9 +370,12 @@ export default function DayHuiPanel({ initialLines = [] }: { initialLines?: DayH
                   ...line,
                   name: name.trim(),
                   soChan: Number(soChan),
+                  kind,
+                  gopCycleDays: kind === "GOP" ? Number(gopCycleDays) : null,
+                  fixedBid: kind === "GOP" ? Number(fixedBid) : null,
                   mucHuiThang: mucHuiThang.trim(),
                   tienCo: tienCo.trim(),
-                  chuKy,
+                  chuKy: kind === "GOP" ? "NGAY" : chuKy,
                   ngayMo: ngayMo.trim(),
                 }
               : line,
@@ -348,6 +397,9 @@ export default function DayHuiPanel({ initialLines = [] }: { initialLines?: DayH
       setSoChan("");
       setMucHuiThang("");
       setTienCo("");
+      setKind("THUONG");
+      setGopCycleDays("10");
+      setFixedBid("");
       setChuKy("THANG");
       setNgayMo("");
       setEditingId(null);
@@ -371,7 +423,10 @@ export default function DayHuiPanel({ initialLines = [] }: { initialLines?: DayH
     setSoChan(String(line.soChan));
     setMucHuiThang(line.mucHuiThang);
     setTienCo(line.tienCo ?? "");
-    setChuKy(line.chuKy);
+    setKind(line.kind ?? "THUONG");
+    setGopCycleDays(String(line.gopCycleDays ?? 10));
+    setFixedBid(String(line.fixedBid ?? ""));
+    setChuKy((line.kind ?? "THUONG") === "GOP" ? "NGAY" : line.chuKy);
     setNgayMo(line.ngayMo);
     setShowForm(true);
   }
@@ -770,15 +825,106 @@ export default function DayHuiPanel({ initialLines = [] }: { initialLines?: DayH
               </p>
             ) : null}
           </div>
+          <div className="flex flex-col gap-1">
+            <select
+              id="line-form-kind"
+              className={fieldInputClass("kind")}
+              value={kind}
+              onChange={(e) => {
+                const nextKind = e.target.value as DayHui["kind"];
+                setKind(nextKind);
+                setFieldErrors((p) => ({ ...p, kind: undefined, gopCycleDays: undefined, fixedBid: undefined }));
+                if (nextKind === "GOP") {
+                  setChuKy("NGAY");
+                  if (!gopCycleDays) setGopCycleDays("10");
+                }
+              }}
+            >
+              <option value="THUONG">Loại dây: Dây thường</option>
+              <option value="GOP">Loại dây: Dây hụi góp</option>
+            </select>
+            {fieldErrors.kind ? <p className="text-xs text-rose-600">{fieldErrors.kind}</p> : null}
+          </div>
           <select
             className="rounded-xl border border-slate-300 bg-white px-3 py-2 outline-none focus:border-blue-400"
             value={chuKy}
             onChange={(e) => setChuKy(e.target.value as DayHui["chuKy"])}
+            disabled={kind === "GOP"}
           >
             <option value="NGAY">Chu kỳ: Ngày</option>
             <option value="THANG">Chu kỳ: Tháng</option>
             <option value="NAM">Chu kỳ: Năm</option>
           </select>
+          {kind === "GOP" ? (
+            <>
+              <div className="flex flex-col gap-1">
+                <label htmlFor="line-form-gopCycleDays" className="text-sm font-medium text-slate-700">
+                  Số ngày mỗi kỳ góp
+                </label>
+                <input
+                  id="line-form-gopCycleDays"
+                  className={fieldInputClass("gopCycleDays")}
+                  value={gopCycleDays}
+                  type="number"
+                  min={1}
+                  step={1}
+                  list="line-form-gopCycleDays-quick-options"
+                  placeholder="Nhập số ngày (vd: 7)"
+                  onChange={(e) => {
+                    setGopCycleDays(e.target.value);
+                    setFieldErrors((p) => ({ ...p, gopCycleDays: undefined }));
+                  }}
+                />
+                <datalist id="line-form-gopCycleDays-quick-options">
+                  <option value="3" />
+                  <option value="5" />
+                  <option value="10" />
+                  <option value="15" />
+                  <option value="30" />
+                </datalist>
+                <div className="flex flex-wrap gap-2">
+                  {[3, 5, 10, 15, 30].map((days) => (
+                    <button
+                      key={days}
+                      type="button"
+                      onClick={() => {
+                        setGopCycleDays(String(days));
+                        setFieldErrors((p) => ({ ...p, gopCycleDays: undefined }));
+                      }}
+                      className={`rounded-lg border px-2.5 py-1 text-xs font-semibold ${
+                        Number(gopCycleDays) === days
+                          ? "border-blue-500 bg-blue-50 text-blue-700"
+                          : "border-slate-300 bg-white text-slate-700"
+                      }`}
+                    >
+                      {days} ngày
+                    </button>
+                  ))}
+                </div>
+                {fieldErrors.gopCycleDays ? (
+                  <p className="text-xs text-rose-600">{fieldErrors.gopCycleDays}</p>
+                ) : null}
+              </div>
+              <div className="flex flex-col gap-1">
+                <input
+                  id="line-form-fixedBid"
+                  className={fieldInputClass("fixedBid")}
+                  placeholder="Giá thăm cố định (vd: 20000)"
+                  type="number"
+                  min={0}
+                  value={fixedBid}
+                  onChange={(e) => {
+                    setFixedBid(e.target.value);
+                    setFieldErrors((p) => ({ ...p, fixedBid: undefined }));
+                  }}
+                />
+                {fieldErrors.fixedBid ? <p className="text-xs text-rose-600">{fieldErrors.fixedBid}</p> : null}
+                <p className="text-xs text-slate-500">
+                  Dây góp: chân sống đóng theo ngày = mức dây - giá thăm; chân chết đóng đủ mức dây mỗi ngày.
+                </p>
+              </div>
+            </>
+          ) : null}
 
           <div className="md:col-span-2">
             <button
@@ -799,6 +945,9 @@ export default function DayHuiPanel({ initialLines = [] }: { initialLines?: DayH
                   setSoChan("");
                   setMucHuiThang("");
                   setTienCo("");
+                  setKind("THUONG");
+                  setGopCycleDays("10");
+                  setFixedBid("");
                   setChuKy("THANG");
                   setNgayMo("");
                   setShowForm(false);
@@ -854,12 +1003,22 @@ export default function DayHuiPanel({ initialLines = [] }: { initialLines?: DayH
                 <Fragment key={line.id}>
                   <tr key={line.id} className="text-slate-700 transition hover:bg-slate-50">
                     <td className="border-r border-slate-300 px-3 py-3 font-semibold">{index + 1}</td>
-                    <td className="border-r border-slate-300 px-3 py-3 text-left font-semibold">{line.name}</td>
+                    <td className="border-r border-slate-300 px-3 py-3 text-left font-semibold">
+                      <p>{line.name}</p>
+                      <p className="text-xs font-medium text-slate-500">
+                        {formatLoaiDay(line)}
+                        {line.kind === "GOP" ? ` • Thăm cố định: ${formatMoneyVN(String(line.fixedBid ?? 0))}` : ""}
+                      </p>
+                    </td>
                     <td className="border-r border-slate-300 px-3 py-3 font-semibold">{line.soChan}</td>
                     <td className="border-r border-slate-300 px-3 py-3 font-semibold">{formatMoneyVN(line.mucHuiThang)}</td>
                     <td className="border-r border-slate-300 px-3 py-3 font-semibold">{line.ngayMo}</td>
                     <td className="border-r border-slate-300 px-3 py-3 font-semibold">{formatMoneyVN(line.tienCo)}</td>
-                    <td className="border-r border-slate-300 px-3 py-3 font-semibold">{formatChuKy(line.chuKy)}</td>
+                    <td className="border-r border-slate-300 px-3 py-3 font-semibold">
+                      {line.kind === "GOP"
+                        ? `${line.gopCycleDays ?? 1} ngày/kỳ`
+                        : formatChuKy(line.chuKy)}
+                    </td>
                     <td className="border-r border-slate-300 px-3 py-3">
                       <div className="flex flex-wrap items-center justify-center gap-2">
                         <button

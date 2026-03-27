@@ -40,8 +40,13 @@ export function assertKhuiDateIsToday(khuiDate: Date, now: Date = new Date()): s
 
 const TIMEZONE_VN = "Asia/Ho_Chi_Minh";
 
+function isValidDate(value: Date): boolean {
+  return !Number.isNaN(value.getTime());
+}
+
 /** Ngày lịch (YYYY-MM-DD) theo múi giờ Việt Nam — tránh lệch ngày khi so khớp phiếu tạm thu với DB UTC. */
 export function hoChiMinhCalendarKeyFromDate(d: Date): string {
+  if (!isValidDate(d)) return "";
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: TIMEZONE_VN,
     year: "numeric",
@@ -52,7 +57,10 @@ export function hoChiMinhCalendarKeyFromDate(d: Date): string {
 
 export function hoChiMinhCalendarKeyFromIso(iso: string | null | undefined): string | null {
   if (!iso) return null;
-  return hoChiMinhCalendarKeyFromDate(new Date(iso));
+  const date = new Date(iso);
+  if (!isValidDate(date)) return null;
+  const key = hoChiMinhCalendarKeyFromDate(date);
+  return key || null;
 }
 
 function hoChiMinhCalendarDayDiffDays(keyA: string, keyB: string): number {

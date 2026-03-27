@@ -1,4 +1,4 @@
-import { HuiCycle } from "@prisma/client";
+import { HuiCycle, HuiLineKind } from "@prisma/client";
 import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -12,6 +12,9 @@ const updateSchema = z.object({
   soChan: z.number().int().min(1, "Số chân phải lớn hơn 0"),
   mucHuiThang: z.string().min(1, "Vui lòng nhập mức hụi/tháng"),
   tienCo: z.string().min(1, "Vui lòng nhập tiền cò (có thể nhập 0 nếu không lấy cò)"),
+  kind: z.enum(["THUONG", "GOP"]).default("THUONG"),
+  gopCycleDays: z.number().int().min(1).max(365).optional(),
+  fixedBid: z.number().int().min(0).optional(),
   chuKy: z.enum(["NGAY", "THANG", "NAM"]).default("THANG"),
   ngayMo: z.string().min(8, "Ngày mở không hợp lệ"),
 });
@@ -46,6 +49,9 @@ export async function GET(
       select: {
         id: true,
         name: true,
+        kind: true,
+        gopCycleDays: true,
+        fixedBid: true,
         soChan: true,
         mucHuiThang: true,
         tienCo: true,
@@ -141,7 +147,7 @@ export async function PUT(
       );
     }
 
-    const { name, soChan, mucHuiThang, tienCo, chuKy, ngayMo } = parsed.data;
+    const { name, soChan, mucHuiThang, tienCo, kind, gopCycleDays, fixedBid, chuKy, ngayMo } = parsed.data;
     const mucHuiDecimal = parseMoneyToDecimal(mucHuiThang);
     if (!mucHuiDecimal || Number(mucHuiDecimal) <= 0) {
       return NextResponse.json({ message: "Mức hụi không hợp lệ" }, { status: 400 });
@@ -157,15 +163,32 @@ export async function PUT(
     if (!ngayMoDate) {
       return NextResponse.json({ message: "Ngày mở không hợp lệ" }, { status: 400 });
     }
+    const normalizedGopDays = kind === "GOP" ? gopCycleDays : undefined;
+    if (kind === "GOP" && (!normalizedGopDays || normalizedGopDays <= 0)) {
+      return NextResponse.json({ message: "Vui lòng chọn số ngày mỗi kỳ góp" }, { status: 400 });
+    }
+    const normalizedFixedBid = kind === "GOP" ? fixedBid : undefined;
+    if (kind === "GOP" && (normalizedFixedBid == null || normalizedFixedBid < 0)) {
+      return NextResponse.json({ message: "Vui lòng nhập giá thăm cố định hợp lệ" }, { status: 400 });
+    }
+    if (kind === "GOP" && normalizedFixedBid != null && normalizedFixedBid >= Number(mucHuiDecimal)) {
+      return NextResponse.json(
+        { message: "Giá thăm cố định phải nhỏ hơn mức dây hụi góp" },
+        { status: 400 },
+      );
+    }
 
     await prisma.huiLine.update({
       where: { id },
       data: {
         name,
+        kind: kind as HuiLineKind,
+        gopCycleDays: normalizedGopDays ?? null,
+        fixedBid: normalizedFixedBid ?? null,
         soChan,
         mucHuiThang: mucHuiDecimal,
         tienCo: tienCoDecimal,
-        chuKy: chuKy as HuiCycle,
+        chuKy: kind === "GOP" ? HuiCycle.NGAY : (chuKy as HuiCycle),
         ngayMo: ngayMoDate,
       },
     });

@@ -60,6 +60,9 @@ export default function KhuiPagePanel({ lineId }: { lineId: string }) {
   const router = useRouter();
   const cacheKey = `khui-page-cache:${lineId}`;
   const [lineName, setLineName] = useState("");
+  const [lineKind, setLineKind] = useState<"THUONG" | "GOP">("THUONG");
+  const [lineGopCycleDays, setLineGopCycleDays] = useState<number | null>(null);
+  const [lineFixedBid, setLineFixedBid] = useState<number | null>(null);
   const [legs, setLegs] = useState<HuiLeg[]>([]);
   const [winnerLegId, setWinnerLegId] = useState("");
   const [bidAmount, setBidAmount] = useState("");
@@ -122,7 +125,12 @@ export default function KhuiPagePanel({ lineId }: { lineId: string }) {
   }, [cacheKey, lineName, legs]);
 
   function applyLinePayload(lineData: {
-    line?: { name?: string };
+    line?: {
+      name?: string;
+      kind?: "THUONG" | "GOP";
+      gopCycleDays?: number | null;
+      fixedBid?: number | null;
+    };
     name?: string;
     latestOpening?: {
       id?: string;
@@ -135,6 +143,12 @@ export default function KhuiPagePanel({ lineId }: { lineId: string }) {
     legs?: HuiLeg[];
   }) {
     setLineName(lineData.line?.name ?? lineData.name ?? "");
+    setLineKind(lineData.line?.kind === "GOP" ? "GOP" : "THUONG");
+    setLineGopCycleDays(lineData.line?.gopCycleDays ?? null);
+    setLineFixedBid(lineData.line?.fixedBid ?? null);
+    if (lineData.line?.kind === "GOP") {
+      setBidAmount(String(lineData.line.fixedBid ?? 0));
+    }
     if (lineData.latestOpening) {
       const o = lineData.latestOpening;
       const st = o.status === "DA_GIAO_TIEN" || o.status === "CHO_GIAO_TIEN" ? o.status : "CHO_GIAO_TIEN";
@@ -211,7 +225,7 @@ export default function KhuiPagePanel({ lineId }: { lineId: string }) {
     setSubmitting(true);
     setError("");
     try {
-      const parsedBid = Number(bidAmount || "0");
+      const parsedBid = Number(lineKind === "GOP" ? String(lineFixedBid ?? 0) : bidAmount || "0");
       const safeBidAmount = Number.isNaN(parsedBid) || parsedBid < 0 ? 0 : Math.floor(parsedBid);
       const res = await fetch(`/api/day-hui/${lineId}/khui`, {
         method: "POST",
@@ -305,9 +319,15 @@ export default function KhuiPagePanel({ lineId }: { lineId: string }) {
             min={0}
             value={bidAmount}
             onChange={(e) => setBidAmount(e.target.value)}
+            disabled={lineKind === "GOP"}
             className="rounded-lg border border-slate-300 bg-white px-3 py-2 outline-none focus:border-blue-400"
-            placeholder="VD: 200000"
+            placeholder={lineKind === "GOP" ? "Giá thăm cố định từ lúc tạo dây" : "VD: 200000"}
           />
+          {lineKind === "GOP" ? (
+            <span className="text-xs text-slate-500">
+              Dây góp {lineGopCycleDays ?? 1} ngày/kỳ • thăm cố định {formatMoneyVN(lineFixedBid ?? 0)}
+            </span>
+          ) : null}
         </label>
         <label className="grid gap-1">
           <span className="text-sm font-medium text-slate-700">Ngày khui</span>

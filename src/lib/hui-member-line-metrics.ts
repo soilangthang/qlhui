@@ -39,6 +39,8 @@ export type HuiLineDetailRow = {
   lineId: string;
   lineName: string;
   lineAmount: number;
+  /** Hệ số quy đổi đóng theo kỳ (dây góp: số ngày mỗi kỳ; dây thường: 1). Mặc định = 1. */
+  contributionDays?: number;
   lineTienCo: number;
   /** Ngày mở dây (ISO) */
   ngayMo: string;
@@ -216,7 +218,8 @@ export function futureDeadLegPayEstimate(row: HuiLineDetailRow, member: HuiMembe
   if (dead <= 0 || row.latestKy == null || row.latestKy <= 0) return 0;
   const remainingKy = Math.max(0, row.totalCycles - row.latestKy);
   if (remainingKy <= 0) return 0;
-  return dead * row.lineAmount * remainingKy;
+  const cycleFactor = Math.max(1, row.contributionDays ?? 1);
+  return dead * row.lineAmount * cycleFactor * remainingKy;
 }
 
 export function formatDateDisplay(value: string | null) {
@@ -278,8 +281,10 @@ export function rowPayInPayOut(row: RowWithMemberSlots, member: HuiMemberRef | n
   const isWinner = isMemberWinnerOnRow(row, member);
   const deadSlots = deadSlotsOnRowForMember(row, member);
   const liveSlots = Math.max(0, row.memberSlots - deadSlots);
-  const contribution = row.latestContributionPerSlot || row.lineAmount;
-  const payIn = isWinner ? 0 : contribution * liveSlots + deadSlots * row.lineAmount;
+  const cycleFactor = Math.max(1, row.contributionDays ?? 1);
+  const contribution = row.latestContributionPerSlot || row.lineAmount * cycleFactor;
+  const deadAmountPerSlot = row.lineAmount * cycleFactor;
+  const payIn = isWinner ? 0 : contribution * liveSlots + deadSlots * deadAmountPerSlot;
   const payOut = isWinner
     ? hoiTienDaTruCoTheoNhieuChan(row.totalCycles, row.memberSlots, contribution, row.lineTienCo)
     : 0;
@@ -304,7 +309,8 @@ export function profitManDay(row: RowWithMemberSlots, member: HuiMemberRef | nul
   if (remainingKy <= 0) return hi;
   const { isWinner, contribution, liveSlots, deadSlots } = rowPayInPayOut(row, member);
   if (isWinner) return hi;
-  const perKy = contribution * liveSlots + row.lineAmount * deadSlots;
+  const cycleFactor = Math.max(1, row.contributionDays ?? 1);
+  const perKy = contribution * liveSlots + row.lineAmount * cycleFactor * deadSlots;
   return hi - perKy * remainingKy;
 }
 
@@ -318,7 +324,8 @@ function payOutDaTruCoForOpening(
   opening: HuiOpeningForMetrics,
   memberSlots: number,
 ): number {
-  const contribution = opening.contributionPerSlot || row.lineAmount;
+  const cycleFactor = Math.max(1, row.contributionDays ?? 1);
+  const contribution = opening.contributionPerSlot || row.lineAmount * cycleFactor;
   return hoiTienDaTruCoTheoNhieuChan(row.totalCycles, memberSlots, contribution, row.lineTienCo);
 }
 
@@ -357,7 +364,8 @@ export function computeMemberRealizedProfit(row: RowWithMemberSlots, member: Hui
 
   for (const opening of completedOpenings) {
     lastDaKy = Math.max(lastDaKy, opening.kyThu);
-    const contribution = opening.contributionPerSlot || row.lineAmount;
+      const cycleFactor = Math.max(1, row.contributionDays ?? 1);
+      const contribution = opening.contributionPerSlot || row.lineAmount * cycleFactor;
 
     const isWinner = openingWinnerMatchesMember(opening.winnerName, opening.winnerPhone, member);
 
@@ -369,7 +377,7 @@ export function computeMemberRealizedProfit(row: RowWithMemberSlots, member: Hui
     } else {
       const liveSlots = Math.max(0, memberSlots - deadSlots);
       // Dead leg vẫn phải đóng tới mãn dây, giá chân chết = mức giá dây.
-      realizedPayIn += liveSlots * contribution + deadSlots * row.lineAmount;
+      realizedPayIn += liveSlots * contribution + deadSlots * row.lineAmount * cycleFactor;
     }
   }
 

@@ -4,6 +4,7 @@ type CalculateHuiPayoutInput = {
   huiAmount: number;
   bidAmount: number;
   commission: number;
+  cycleDays?: number;
 };
 
 type CalculateHuiPayoutResult = {
@@ -32,15 +33,18 @@ export function calculateHuiPayout({
   huiAmount,
   bidAmount,
   commission,
+  cycleDays = 1,
 }: CalculateHuiPayoutInput): CalculateHuiPayoutResult {
   assertNonNegativeInteger(totalSlots, "totalSlots");
   assertNonNegativeInteger(winnerSlots, "winnerSlots");
   assertNonNegativeInteger(huiAmount, "huiAmount");
   assertNonNegativeInteger(bidAmount, "bidAmount");
   assertNonNegativeInteger(commission, "commission");
+  assertNonNegativeInteger(cycleDays, "cycleDays");
 
   const contributors = Math.max(0, totalSlots - winnerSlots);
-  const contributionPerSlot = Math.max(0, huiAmount - bidAmount);
+  const contributionPerDay = Math.max(0, huiAmount - bidAmount);
+  const contributionPerSlot = contributionPerDay * Math.max(1, cycleDays);
 
   const grossPayoutBigInt = BigInt(contributors) * BigInt(contributionPerSlot);
   const finalPayoutBigInt = grossPayoutBigInt - BigInt(commission);

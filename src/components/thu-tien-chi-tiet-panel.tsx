@@ -99,13 +99,15 @@ export default function ThuTienChiTietPanel({
     // Dây đã hốt kỳ đang tính: không cộng tiền đóng (trừ ngang). Còn lại: chân sống × góp kỳ + chân chết × mức dây.
     const totalPayIn = receiptRows.reduce((acc, row) => {
       if (isMemberWinnerOnRow(row, selectedMember)) return acc;
-      const contribution = row.latestContributionPerSlot || row.lineAmount;
+      const cycleFactor = Math.max(1, row.contributionDays ?? 1);
+      const contribution = row.latestContributionPerSlot || row.lineAmount * cycleFactor;
       const dead = deadSlotsOnRowForMember(row, selectedMember);
       const live = Math.max(0, row.memberSlots - dead);
-      return acc + contribution * live + dead * row.lineAmount;
+      return acc + contribution * live + dead * row.lineAmount * cycleFactor;
     }, 0);
     const totalPayOut = receiptRows.reduce((acc, row) => {
-      const contribution = row.latestContributionPerSlot || row.lineAmount;
+      const cycleFactor = Math.max(1, row.contributionDays ?? 1);
+      const contribution = row.latestContributionPerSlot || row.lineAmount * cycleFactor;
       const isWinner = isMemberWinnerOnRow(row, selectedMember);
       return acc +
         (isWinner
@@ -121,10 +123,11 @@ export default function ThuTienChiTietPanel({
     for (const row of receiptRows) {
       const key = khuiTrungKyGroupKey(row);
       const isWinner = isMemberWinnerOnRow(row, selectedMember);
-      const contribution = row.latestContributionPerSlot || row.lineAmount;
+      const cycleFactor = Math.max(1, row.contributionDays ?? 1);
+      const contribution = row.latestContributionPerSlot || row.lineAmount * cycleFactor;
       const dead = deadSlotsOnRowForMember(row, selectedMember);
       const live = Math.max(0, row.memberSlots - dead);
-      const payIn = isWinner ? 0 : contribution * live + dead * row.lineAmount;
+      const payIn = isWinner ? 0 : contribution * live + dead * row.lineAmount * cycleFactor;
       const payOut = isWinner
         ? hoiTienDaTruCoTheoNhieuChan(row.totalCycles, row.memberSlots, contribution, row.lineTienCo)
         : 0;
@@ -516,8 +519,11 @@ export default function ThuTienChiTietPanel({
                 const isWinner = isMemberWinnerOnRow(row, selectedMember);
                 const deadSlots = deadSlotsOnRowForMember(row, selectedMember);
                 const liveSlots = Math.max(0, row.memberSlots - deadSlots);
-                const contribution = row.latestContributionPerSlot || row.lineAmount;
-                const payIn = isWinner ? 0 : contribution * liveSlots + deadSlots * row.lineAmount;
+                const cycleFactor = Math.max(1, row.contributionDays ?? 1);
+                const contribution = row.latestContributionPerSlot || row.lineAmount * cycleFactor;
+                const payIn = isWinner
+                  ? 0
+                  : contribution * liveSlots + deadSlots * row.lineAmount * cycleFactor;
                 const payOut = isWinner
                   ? hoiTienDaTruCoTheoNhieuChan(row.totalCycles, row.memberSlots, contribution, row.lineTienCo)
                   : 0;

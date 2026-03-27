@@ -57,6 +57,15 @@ function toIsoString(input: unknown): string {
   return "";
 }
 
+function toDateOrNull(input: unknown): Date | null {
+  if (input instanceof Date) return Number.isNaN(input.getTime()) ? null : input;
+  if (typeof input === "string" || typeof input === "number") {
+    const d = new Date(input);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  return null;
+}
+
 const loadDashboardDataCached = unstable_cache(
   async (userId: string) => {
     const [huiMemberCount, choGiaoTien, lines, grossSum, paidOutSum, commissionRows, latestOpeningGlobal] =
@@ -154,7 +163,9 @@ export default async function DashboardPage() {
   const canKhuiHomNay = lines.filter((l) => {
     if (l._count.openings >= l.soChan) return false;
     const latest = l.openings[0];
-    const nextDate = !latest ? l.ngayMo : addCycleFromDate(new Date(latest.ngayKhui), l.chuKy);
+    const nextDateBase = !latest ? toDateOrNull(l.ngayMo) : toDateOrNull(latest.ngayKhui);
+    if (!nextDateBase) return false;
+    const nextDate = !latest ? nextDateBase : addCycleFromDate(nextDateBase, l.chuKy);
     return hoChiMinhCalendarKeyFromDate(nextDate) === todayKey;
   }).length;
 

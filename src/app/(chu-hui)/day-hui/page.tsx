@@ -17,6 +17,9 @@ export default async function DayHuiPage() {
     select: {
       id: true,
       name: true,
+      kind: true,
+      gopCycleDays: true,
+      fixedBid: true,
       soChan: true,
       mucHuiThang: true,
       tienCo: true,
@@ -35,6 +38,9 @@ export default async function DayHuiPage() {
         initialLines={lines.map((line) => ({
           id: line.id,
           name: line.name,
+          kind: line.kind,
+          gopCycleDays: line.gopCycleDays ?? null,
+          fixedBid: line.fixedBid ?? null,
           soChan: line.soChan,
           mucHuiThang: line.mucHuiThang.toString(),
           tienCo: line.tienCo?.toString() ?? null,
