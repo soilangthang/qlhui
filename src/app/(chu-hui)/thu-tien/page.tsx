@@ -30,6 +30,7 @@ type ThuTienRowPayload = {
   amountToCollect: number;
   amountToDeliver: number;
   status: "CHO_GIAO_TIEN" | "DA_GIAO_TIEN";
+  isCollectedComplete: boolean;
 };
 
 type PaidMarkRow = { huiOpeningId: string; memberKey: string; paidFull: boolean };
@@ -92,6 +93,49 @@ function markedCollectedAmountForOpening(
   return total;
 }
 
+function winnerMemberKeyForOpening(
+  legs: { stt: number; memberName: string | null; memberPhone: string | null; note: string | null }[],
+  winnerLegStt: number | null,
+  winnerName: string | null,
+  winnerPhone: string | null,
+) {
+  if (winnerLegStt != null && winnerLegStt > 0) {
+    const leg = legs.find((item) => item.stt === winnerLegStt);
+    if (leg) return memberTrackingKeyFromLeg(leg);
+  }
+
+  const normalizedWinnerName = (winnerName ?? "").trim().toLowerCase();
+  const normalizedWinnerPhone = (winnerPhone ?? "").replace(/\D/g, "");
+  for (const leg of legs) {
+    const name = (leg.memberName ?? "").trim().toLowerCase();
+    const phone = (leg.memberPhone ?? "").replace(/\D/g, "");
+    if (name === normalizedWinnerName && phone === normalizedWinnerPhone) {
+      return memberTrackingKeyFromLeg(leg);
+    }
+  }
+  return null;
+}
+
+function isOpeningCollectedComplete(
+  openingId: string,
+  winnerKey: string | null,
+  legs: { stt: number; memberName: string | null; memberPhone: string | null; note: string | null }[],
+  marksByOpeningAndMemberKey: Map<string, boolean>,
+) {
+  const groupKeys = new Set<string>();
+  for (const leg of legs) {
+    const memberKey = memberTrackingKeyFromLeg(leg);
+    if (!memberKey) continue;
+    if (winnerKey && memberKey === winnerKey) continue;
+    groupKeys.add(memberKey);
+  }
+  if (groupKeys.size === 0) return false;
+  for (const key of groupKeys) {
+    if (!marksByOpeningAndMemberKey.get(`${openingId}\t${key}`)) return false;
+  }
+  return true;
+}
+
 const loadThuTienRowsCached = unstable_cache(
   async (userId: string): Promise<ThuTienRowPayload[]> => {
     const baseSelect = {
@@ -146,7 +190,18 @@ const loadThuTienRowsCached = unstable_cache(
       }),
     ]);
 
-    const rowsSource = [...pendingOpenings, ...completedOpenings].sort((a, b) => {
+    const allOpenings = [...pendingOpenings, ...completedOpenings];
+    const openingsByLineId = new Map<string, typeof allOpenings>();
+    for (const opening of allOpenings) {
+      const bucket = openingsByLineId.get(opening.huiLine.id);
+      if (bucket) bucket.push(opening);
+      else openingsByLineId.set(opening.huiLine.id, [opening]);
+    }
+    for (const bucket of openingsByLineId.values()) {
+      bucket.sort((a, b) => a.kyThu - b.kyThu);
+    }
+
+    const rowsSource = [...allOpenings].sort((a, b) => {
       if (a.status !== b.status) {
         return a.status === "CHO_GIAO_TIEN" ? -1 : 1;
       }
@@ -162,6 +217,9 @@ const loadThuTienRowsCached = unstable_cache(
     }
 
     return rowsSource.map((item) => {
+      const openingsForThisRow = (openingsByLineId.get(item.huiLine.id) ?? []).filter(
+        (opening) => opening.kyThu <= item.kyThu,
+      );
       const rowDetail: HuiLineDetailRow = {
         lineId: item.huiLine.id,
         lineName: item.huiLine.name,
@@ -184,17 +242,17 @@ const loadThuTienRowsCached = unstable_cache(
         latestWinnerLegStt: item.winnerLegStt,
         latestWinnerSlots: item.winnerSlots,
         latestMarkedCollectedAmount: 0,
-        openings: [
-          {
-            kyThu: item.kyThu,
-            status: item.status,
-            contributionPerSlot: item.contributionPerSlot,
-            winnerName: item.winnerName,
-            winnerPhone: item.winnerPhone,
-            winnerLegStt: item.winnerLegStt,
-            winnerSlots: item.winnerSlots,
-          } satisfies HuiOpeningForMetrics,
-        ],
+        openings: openingsForThisRow.map(
+          (opening): HuiOpeningForMetrics => ({
+            kyThu: opening.kyThu,
+            status: opening.status,
+            contributionPerSlot: opening.contributionPerSlot,
+            winnerName: opening.winnerName,
+            winnerPhone: opening.winnerPhone,
+            winnerLegStt: opening.winnerLegStt,
+            winnerSlots: opening.winnerSlots,
+          }),
+        ),
         participants: item.huiLine.legs.map((leg) => ({
           legStt: leg.stt,
           memberId: parseMemberIdFromNote(leg.note),
@@ -208,6 +266,20 @@ const loadThuTienRowsCached = unstable_cache(
         marksByOpeningAndMemberKey,
         item.huiLine.legs,
       );
+      const collectedNowAmount =
+        (rowDetail.latestMarkedCollectedAmount ?? 0) > 0 || item.status !== "DA_GIAO_TIEN"
+          ? (rowDetail.latestMarkedCollectedAmount ?? 0)
+          : latestCollectedTargetVND(rowDetail);
+      const winnerKey = winnerMemberKeyForOpening(
+        item.huiLine.legs,
+        item.winnerLegStt,
+        item.winnerName,
+        item.winnerPhone,
+      );
+      const isCollectedComplete =
+        item.huiLine.kind === "GOP"
+          ? isOpeningCollectedComplete(item.id, winnerKey, item.huiLine.legs, marksByOpeningAndMemberKey)
+          : item.status === "DA_GIAO_TIEN";
 
       return {
         id: item.id,
@@ -217,17 +289,15 @@ const loadThuTienRowsCached = unstable_cache(
         huiLineGopCycleDays: item.huiLine.gopCycleDays,
         kyThu: item.kyThu,
         ngayKhui: item.ngayKhui.toISOString(),
-        collectedNowAmount:
-          item.huiLine.kind === "GOP"
-            ? rowDetail.latestMarkedCollectedAmount ?? 0
-            : latestCollectedTargetVND(rowDetail),
+        collectedNowAmount,
         amountToCollect: latestCollectedTargetVND(rowDetail),
         amountToDeliver: latestDeliveryAmountVND(rowDetail),
         status: item.status,
+        isCollectedComplete,
       };
     });
   },
-  ["thu-tien-page-data-v5"],
+  ["thu-tien-page-data-v6"],
   { revalidate: 60, tags: ["thu-tien-panel-data"] },
 );
 

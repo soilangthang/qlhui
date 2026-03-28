@@ -18,18 +18,23 @@ export async function PUT(
     const { openingId } = await params;
     const owned = await prisma.huiOpening.findFirst({
       where: { id: openingId, huiLine: { userId: gate.userId } },
-      select: { id: true },
+      select: { id: true, status: true, huiLine: { select: { kind: true } } },
     });
     if (!owned) {
       return NextResponse.json({ message: "Không tìm thấy kỳ khui" }, { status: 404 });
     }
 
-    const updated = await prisma.huiOpening.update({
-      where: { id: openingId },
-      data: { status: "DA_GIAO_TIEN" },
-      select: { id: true, status: true },
-    });
-    await syncPaidMarksWhenOpeningDelivered(openingId);
+    let updated = { id: openingId, status: owned.status };
+    if (owned.huiLine.kind === "GOP") {
+      await syncPaidMarksWhenOpeningDelivered(openingId);
+    } else {
+      updated = await prisma.huiOpening.update({
+        where: { id: openingId },
+        data: { status: "DA_GIAO_TIEN" },
+        select: { id: true, status: true },
+      });
+      await syncPaidMarksWhenOpeningDelivered(openingId);
+    }
     revalidateTag("thu-tien-panel-data", "max");
     revalidateTag("theo-doi-data", "max");
     revalidateTag("dashboard-data", "max");

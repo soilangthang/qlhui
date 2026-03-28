@@ -190,6 +190,63 @@ describe("GOP receipt payout timing", () => {
   });
 });
 
+describe("GOP dead slot after winning a previous cycle", () => {
+  it("charges full line amount per collection from the next cycle onward", () => {
+    const [withSlots] = rowsForMember(
+      [
+        row({
+          lineAmount: 1_000_000,
+          contributionDays: 10,
+          lineTienCo: 100_000,
+          totalCycles: 10,
+          latestKy: 2,
+          latestBidAmount: 100_000,
+          latestContributionPerSlot: 9_000_000,
+          latestWinnerName: "Bình",
+          latestWinnerPhone: "0911222333",
+          latestWinnerLegStt: 2,
+          latestWinnerSlots: 1,
+          openings: [
+            {
+              kyThu: 1,
+              ngayKhui: "2026-03-01",
+              status: "CHO_GIAO_TIEN",
+              contributionPerSlot: 9_000_000,
+              grossPayout: 0,
+              finalPayout: 0,
+              winnerName: "An",
+              winnerPhone: "0909123456",
+              winnerLegStt: 1,
+              winnerSlots: 1,
+              bidAmount: 100_000,
+            },
+            {
+              kyThu: 2,
+              ngayKhui: "2026-03-11",
+              status: "CHO_GIAO_TIEN",
+              contributionPerSlot: 9_000_000,
+              grossPayout: 0,
+              finalPayout: 0,
+              winnerName: "Bình",
+              winnerPhone: "0911222333",
+              winnerLegStt: 2,
+              winnerSlots: 1,
+              bidAmount: 100_000,
+            },
+          ],
+          participants: [{ legStt: 1, memberId: memberAn.id, memberName: "An", memberPhone: "0909123456" }],
+        }),
+      ],
+      memberAn,
+    );
+
+    expect(deadSlotsOnRowForMember(withSlots, memberAn)).toBe(1);
+    expect(liveContributionPerCollectionVND(withSlots)).toBe(90_000);
+    expect(deadContributionPerCollectionVND(withSlots)).toBe(100_000);
+    expect(rowPayInPayOut(withSlots, memberAn).payIn).toBe(100_000);
+  });
+});
+
 describe("participantMatchesMember & rowsForMember", () => {
   it("khớp memberId dù tên lệch", () => {
     const p = {

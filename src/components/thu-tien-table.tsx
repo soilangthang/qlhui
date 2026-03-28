@@ -17,12 +17,19 @@ type ThuTienRow = {
   amountToCollect: number;
   amountToDeliver: number;
   status: "CHO_GIAO_TIEN" | "DA_GIAO_TIEN";
+  isCollectedComplete: boolean;
 };
+
+function isRowCompleted(item: ThuTienRow) {
+  return item.huiLineKind === "GOP" ? item.isCollectedComplete : item.status === "DA_GIAO_TIEN";
+}
 
 function sortRows(rows: ThuTienRow[]) {
   return [...rows].sort((a, b) => {
-    if (a.status !== b.status) {
-      return a.status === "CHO_GIAO_TIEN" ? -1 : 1;
+    const aCompleted = isRowCompleted(a);
+    const bCompleted = isRowCompleted(b);
+    if (aCompleted !== bCompleted) {
+      return aCompleted ? 1 : -1;
     }
     const dateDiff = new Date(b.ngayKhui).getTime() - new Date(a.ngayKhui).getTime();
     if (dateDiff !== 0) return dateDiff;
@@ -44,13 +51,13 @@ function formatMoneyVN(value: number) {
 
 function statusLabel(item: ThuTienRow) {
   if (item.huiLineKind === "GOP") {
-    return item.status === "DA_GIAO_TIEN" ? "Đã chốt góp kỳ này" : "Đang gom góp";
+    return item.isCollectedComplete ? "Đã gom đủ kỳ này" : "Đang gom góp";
   }
   return item.status === "DA_GIAO_TIEN" ? "Đã xác nhận giao" : "Chờ giao tiền";
 }
 
 function completedActionLabel(item: ThuTienRow) {
-  return item.huiLineKind === "GOP" ? "Đã chốt góp kỳ này" : "Đã xác nhận giao";
+  return item.huiLineKind === "GOP" ? "Đã gom đủ kỳ này" : "Đã xác nhận giao";
 }
 
 function pendingActionLabel(item: ThuTienRow) {
@@ -106,7 +113,17 @@ export default function ThuTienTable({ initialRows }: { initialRows: ThuTienRow[
         return;
       }
       setRows((prev) =>
-        sortRows(prev.map((row) => (row.id === openingId ? { ...row, status: "DA_GIAO_TIEN" } : row))),
+        sortRows(
+          prev.map((row) =>
+            row.id === openingId
+              ? {
+                  ...row,
+                  status: row.huiLineKind === "GOP" ? row.status : "DA_GIAO_TIEN",
+                  isCollectedComplete: true,
+                }
+              : row,
+          ),
+        ),
       );
       deleteClientCacheByPrefix("chi-tiet-hui-vien:");
     } catch {
@@ -203,7 +220,7 @@ export default function ThuTienTable({ initialRows }: { initialRows: ThuTienRow[
                       ) : null}
                     </td>
                     <td className="px-2 py-3 sm:px-3">
-                      {item.status === "DA_GIAO_TIEN" ? (
+                      {isRowCompleted(item) ? (
                         <span className="inline-flex rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-500">
                           {completedActionLabel(item)}
                         </span>
